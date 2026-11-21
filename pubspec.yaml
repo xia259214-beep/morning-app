@@ -1,0 +1,20 @@
+name: morning
+description: "晨序 MORNING —— 让每一个清晨都有意义。Android 智能闹钟与晨间流程 App（V1）。"
+publish_to: 'none'
+
+version: 1.10.0+16
+
+environment:
+  sdk: ^3.5.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

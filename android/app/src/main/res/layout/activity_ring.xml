@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="#14110E"
+    android:padding="34dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="晨序  MORNING"
+        android:textColor="#8C8275"
+        android:textSize="12sp"
+        android:letterSpacing="0.3" />
+
+    <TextView
+        android:id="@+id/timeText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="22dp"
+        android:text="06:30"
+        android:textColor="#FFFFFF"
+        android:textSize="78sp"
+        android:fontFamily="sans-serif-light"
+        android:includeFontPadding="false" />
+
+    <TextView
+        android:id="@+id/labelText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="晨间唤醒"
+        android:textColor="#EDE6DA"
+        android:textSize="17sp" />
+
+    <TextView
+        android:id="@+id/hintText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="该起床了"
+        android:textColor="#7A736A"
+        android:textSize="12sp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <Button
+        android:id="@+id/wakeBtn"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:backgroundTint="#EDE6DA"
+        android:textColor="#14110E"
+        android:text="我起床了，开始晨间"
+        android:textSize="16sp"
+        android:textAllCaps="false"
+        android:stateListAnimator="@null" />
+
+    <Button
+        android:id="@+id/snoozeBtn"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="12dp"
+        android:backgroundTint="#00000000"
+        android:textColor="#8C8275"
+        android:text="贪睡 5 分钟"
+        android:textSize="14sp"
+        android:textAllCaps="false"
+        android:stateListAnimator="@null" />
+
+</LinearLayout>
