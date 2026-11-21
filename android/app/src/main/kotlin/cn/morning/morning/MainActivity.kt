@@ -209,6 +209,38 @@ class MainActivity : FlutterActivity() {
                 // 已经追了几轮，用于流程页顶部提示「第 n 次提醒你还没打卡」
                 "chaseRound" -> result.success(AlarmStore.chaseRound(this))
 
+                // v1.11.0 本地崩溃日志（零依赖）：崩溃堆栈追加落盘到 filesDir/crash_log.txt。
+                // 超 64KB 直接删掉重记，避免无限膨胀；Bugly 接入后此通道保留作离线兜底。
+                "writeCrashLog" -> {
+                    try {
+                        val f = File(filesDir, "crash_log.txt")
+                        if (f.length() > 64 * 1024) f.delete()
+                        f.appendText(call.argument<String>("text") ?: "")
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
+                }
+
+                "readCrashLog" -> {
+                    try {
+                        val f = File(filesDir, "crash_log.txt")
+                        result.success(if (f.exists()) f.readText() else "")
+                    } catch (e: Exception) {
+                        result.success("")
+                    }
+                }
+
+                "clearCrashLog" -> {
+                    try {
+                        val f = File(filesDir, "crash_log.txt")
+                        if (f.exists()) f.delete()
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
+                }
+
                 else -> result.notImplemented()
             }
         }

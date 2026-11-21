@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'core.dart';
+import 'crash_log.dart';
 import 'glass.dart';
 import 'journal.dart';
 import 'pages_alarms.dart';
@@ -16,19 +17,30 @@ import 'pages_news.dart';
 import 'pages_setup.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Store.load();
-  // 日志和记录分开加载：日志坏掉不该把闹钟一起拖下水
-  await Journal.load();
-  // 上次选的配色在启动时就生效，避免先闪一帧默认色再变
-  AppColor.apply(Store.s('themeId', 'paper'));
-  // v1.9.0：上次选的界面质感（原纸/水晶/流光）与波光开关一并恢复
-  Glass.apply(
-    Store.s('glassId', 'crystal'),
-    motionOn: Store.b('glassMotion', true),
-  );
-  _applyStatusBar();
-  runApp(const MorningApp());
+  // v1.11.0：全局崩溃捕获先装上，后面任何初始化炸了都能留痕。
+  // runZonedGuarded 兜住异步区域里逃逸的未捕获异常。
+  installCrashLog(version: kAppVersion);
+  await runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    await Store.load();
+    // 日志和记录分开加载：日志坏掉不该把闹钟一起拖下水
+    await Journal.load();
+    // 上次选的配色在启动时就生效，避免先闪一帧默认色再变
+    AppColor.apply(Store.s('themeId', 'paper'));
+    // v1.9.0：上次选的界面质感（原纸/水晶/流光）与波光开关一并恢复
+    Glass.apply(
+      Store.s('glassId', 'crystal'),
+      motionOn: Store.b('glassMotion', true),
+    );
+    _applyStatusBar();
+    runApp(const MorningApp());
+  }, (error, stack) {
+    // 异步区域的漏网之鱼：交给崩溃日志（FlutterError/Platform 已覆盖一部分）
+    try {
+      Bridge.writeCrashLog(
+          formatCrash('async', error, stack, version: kAppVersion));
+    } catch (_) {}
+  });
 }
 
 /// 状态栏图标颜色跟随主题：深色主题要用浅色图标，否则看不见

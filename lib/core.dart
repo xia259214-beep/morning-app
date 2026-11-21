@@ -7,6 +7,9 @@ import 'package:flutter/services.dart';
 
 import 'glass.dart';
 
+/// App 版本号（与 pubspec.yaml 同步）。展示与崩溃日志都用它，避免写死多处。
+const String kAppVersion = '1.11.0';
+
 // ============================================================================
 // 1. 设计系统（Minimal / 安静 / 温暖）
 //    所有页面统一从这里取色与字号，保证视觉一致。
@@ -488,6 +491,12 @@ class Bridge {
     final r = await _call<int>('chaseRound');
     return r ?? 0;
   }
+
+  // v1.11.0 本地崩溃日志（零依赖，Bugly 接入后保留作离线兜底）
+  static Future<void> writeCrashLog(String text) => _call('writeCrashLog', {'text': text});
+  static Future<String> readCrashLog() async =>
+      (await _call<String>('readCrashLog')) ?? '';
+  static Future<void> clearCrashLog() => _call('clearCrashLog');
 }
 
 // ============================================================================
