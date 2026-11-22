@@ -281,10 +281,9 @@ class _HomePageState extends State<HomePage> {
   // ---------------------------------------------------------------- 答题入口
   Widget _quizEntry() {
     final answered = _profile.answered.length;
-    final total = QBank.instance.total;
     final tier = Rank.tierOf(answered);
     final next = Rank.nextOf(answered);
-    final ratio = total == 0 ? 0.0 : (answered / total).clamp(0.0, 1.0);
+    final ratio = Rank.progress(answered);
 
     return GestureDetector(
       onTap: _openQuiz,
@@ -326,12 +325,12 @@ class _HomePageState extends State<HomePage> {
                         fontSize: 30, height: 1, fontWeight: FontWeight.w300)),
                 Padding(
                   padding: const EdgeInsets.only(left: 4, bottom: 3),
-                  child: Text(' / $total 道',
+                  child: Text(' 道 · 不封顶',
                       style: TextStyle(fontSize: 12, color: AppColor.sub)),
                 ),
                 const Spacer(),
                 Text(
-                  next == null ? '题库走完了' : '距${next.name} ${Rank.toNext(answered)} 题',
+                  '距${next.name} ${Rank.toNext(answered)} 题',
                   style: TextStyle(fontSize: 11, color: AppColor.sub),
                 ),
               ],

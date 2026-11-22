@@ -11,7 +11,9 @@ import 'package:flutter/material.dart';
 
 import 'core.dart';
 import 'focus.dart';
+import 'power.dart';
 import 'profile.dart';
+import 'radar.dart';
 import 'qbank.dart';
 import 'quiz_pane.dart';
 import 'rank.dart';
@@ -55,7 +57,6 @@ class _QuizPageState extends State<QuizPage> {
   Widget build(BuildContext context) {
     final p = Profile.load();
     final answered = p.answered.length;
-    final total = QBank.instance.total;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -64,7 +65,7 @@ class _QuizPageState extends State<QuizPage> {
           children: [
             _topBar(),
             Expanded(
-              child: _done ? _summary(answered, total) : _runner(),
+              child: _done ? _summary(answered) : _runner(),
             ),
           ],
         ),
@@ -76,7 +77,6 @@ class _QuizPageState extends State<QuizPage> {
   Widget _topBar() {
     final p = Profile.load();
     final answered = p.answered.length;
-    final total = QBank.instance.total;
     final tier = Rank.tierOf(answered);
 
     return Padding(
@@ -99,7 +99,7 @@ class _QuizPageState extends State<QuizPage> {
                   color: AppColor.accentSoft,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text('${tier.name} · 已答 $answered / $total',
+                child: Text('${tier.name} · 已答 $answered 道',
                     style: TextStyle(fontSize: 10.5, color: AppColor.accent)),
               ),
               const Spacer(),
@@ -111,7 +111,7 @@ class _QuizPageState extends State<QuizPage> {
           ClipRRect(
             borderRadius: BorderRadius.circular(3),
             child: LinearProgressIndicator(
-              value: total == 0 ? 0 : (answered / total).clamp(0.0, 1.0),
+              value: Rank.progress(answered),
               minHeight: 4,
               backgroundColor: AppColor.line,
               valueColor: AlwaysStoppedAnimation<Color>(AppColor.accent),
@@ -208,13 +208,15 @@ class _QuizPageState extends State<QuizPage> {
   }
 
   // ---------------------------------------------------------------- 本轮小结
-  Widget _summary(int answered, int total) {
+  Widget _summary(int answered) {
+    final total = QBank.instance.total;
     final t = _tally;
     final correct = t.correct;
     final know = t.answered;
     final rate = know == 0 ? 0 : (correct / know * 100).round();
     final tier = Rank.tierOf(answered);
     final next = Rank.nextOf(answered);
+    final radar = PowerRadar(values: PowerChart.instance.normalized, size: 150);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 10, 24, 28),
@@ -250,47 +252,53 @@ class _QuizPageState extends State<QuizPage> {
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: AppColor.glassEdge),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Row(
-                children: [
-                  Text(tier.name,
-                      style: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.w400)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(tier.note,
-                        style:
-                            TextStyle(fontSize: 11, color: AppColor.sub)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: LinearProgressIndicator(
-                  value: Rank.progress(answered),
-                  minHeight: 5,
-                  backgroundColor: AppColor.line,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColor.accent),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('我的段位',
+                        style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
+                    const SizedBox(height: 5),
+                    Text(tier.name,
+                        style: const TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.w400)),
+                    const SizedBox(height: 4),
+                    Text(tier.note,
+                        style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: LinearProgressIndicator(
+                        value: Rank.progress(answered),
+                        minHeight: 5,
+                        backgroundColor: AppColor.line,
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColor.accent),
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      '再答 ${Rank.toNext(answered)} 道到「${next.name}」',
+                      style: TextStyle(fontSize: 10.5, color: AppColor.sub),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                next == null
-                    ? '题库已经走完了。'
-                    : '再答 ${Rank.toNext(answered)} 道到「${next.name}」',
-                style: TextStyle(fontSize: 11, color: AppColor.sub),
-              ),
+              const SizedBox(width: 6),
+              radar,
             ],
           ),
         ),
+        const SizedBox(height: 7),
+        Text('战力图：答对的领域往外长，答错、跳过往里收。',
+            style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
         const SizedBox(height: 18),
         Text('再来一轮，题数', style: TextStyle(fontSize: 11.5, color: AppColor.sub)),
         const SizedBox(height: 5),
         Text(
-          '平时只问今天「${DailyFocus.today.name}」这一门；选「全部」则四门全开，一次走完 $total 道。',
+          '平时只问今天「${DailyFocus.today.name}」这一门；选「全部」则四门全开，题库现在有 $total 道，还会继续加。',
           style: TextStyle(fontSize: 10.5, height: 1.5, color: AppColor.sub),
         ),
         const SizedBox(height: 8),

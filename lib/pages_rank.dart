@@ -13,8 +13,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'core.dart';
+import 'power.dart';
 import 'profile.dart';
 import 'qbank.dart';
+import 'radar.dart';
 import 'rank.dart';
 
 class RankPage extends StatefulWidget {
@@ -29,7 +31,7 @@ class _RankPageState extends State<RankPage> {
   final TextEditingController _input = TextEditingController();
 
   /// 粘进来的对拼结果，null 表示还没对拼
-  Map<String, int>? _rival;
+  Map<String, dynamic>? _rival;
   String? _err;
 
   @override
@@ -51,6 +53,7 @@ class _RankPageState extends State<RankPage> {
       answered: _answered,
       streak: Store.streak,
       correct: Rank.correctOf(),
+      power: PowerChart.instance,
     );
     await Clipboard.setData(ClipboardData(text: code));
     if (!mounted) return;
@@ -76,7 +79,6 @@ class _RankPageState extends State<RankPage> {
 
   @override
   Widget build(BuildContext context) {
-    final total = QBank.instance.total;
     final tier = Rank.tierOf(_answered);
 
     return Scaffold(
@@ -98,7 +100,7 @@ class _RankPageState extends State<RankPage> {
             ),
             const SizedBox(height: 6),
 
-            // 我的段位
+            // 我的段位 + 战力图（左边段位，右边十边形）
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
@@ -106,56 +108,58 @@ class _RankPageState extends State<RankPage> {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: AppColor.glassEdge),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text('我的段位',
-                      style: TextStyle(fontSize: 11.5, color: AppColor.sub)),
-                  const SizedBox(height: 8),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(tier.name,
-                          style: const TextStyle(
-                              fontSize: 34, height: 1.1, fontWeight: FontWeight.w300)),
-                      const SizedBox(width: 10),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 5),
-                        child: Text('$_answered / $total 道',
-                            style:
-                                TextStyle(fontSize: 12, color: AppColor.sub)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(tier.note,
-                      style: TextStyle(fontSize: 11.5, color: AppColor.sub)),
-                  const SizedBox(height: 14),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(3),
-                    child: LinearProgressIndicator(
-                      value: Rank.progress(_answered),
-                      minHeight: 5,
-                      backgroundColor: AppColor.line,
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColor.accent),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('我的段位',
+                            style: TextStyle(fontSize: 11.5, color: AppColor.sub)),
+                        const SizedBox(height: 8),
+                        Text(tier.name,
+                            style: const TextStyle(
+                                fontSize: 30, height: 1.1, fontWeight: FontWeight.w300)),
+                        const SizedBox(height: 4),
+                        Text('已答 $_answered 道 · 没有上限',
+                            style: TextStyle(fontSize: 11.5, color: AppColor.sub)),
+                        const SizedBox(height: 6),
+                        Text(tier.note,
+                            style: TextStyle(fontSize: 11, color: AppColor.sub)),
+                        const SizedBox(height: 12),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(3),
+                          child: LinearProgressIndicator(
+                            value: Rank.progress(_answered),
+                            minHeight: 5,
+                            backgroundColor: AppColor.line,
+                            valueColor: AlwaysStoppedAnimation<Color>(AppColor.accent),
+                          ),
+                        ),
+                        const SizedBox(height: 7),
+                        Text(
+                          '再答 ${Rank.toNext(_answered)} 道到「${Rank.nextOf(_answered).name}」',
+                          style: TextStyle(fontSize: 10.5, color: AppColor.sub),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    Rank.nextOf(_answered) == null
-                        ? '题库已经走完，剩下的只是复习。'
-                        : '再答 ${Rank.toNext(_answered)} 道到「${Rank.nextOf(_answered)!.name}」',
-                    style: TextStyle(fontSize: 11, color: AppColor.sub),
-                  ),
+                  const SizedBox(width: 8),
+                  PowerRadar(values: PowerChart.instance.normalized, size: 132),
                 ],
               ),
             ),
+
+            const SizedBox(height: 8),
+            Text('这张多边形就是你的战力：答对的领域往外长，答错、跳过就往里收。',
+                style: TextStyle(fontSize: 10.5, height: 1.5, color: AppColor.sub)),
 
             const SizedBox(height: 18),
             Text('段位阶梯',
                 style: TextStyle(fontSize: 11.5, letterSpacing: 1, color: AppColor.sub)),
             const SizedBox(height: 10),
-            for (var i = kTiers.length - 1; i >= 0; i--) _tierRow(i),
+            for (final t in Rank.ladderRows(_answered).reversed) _tierRow(t),
 
             const SizedBox(height: 20),
             Text('跟朋友对拼',
@@ -186,6 +190,7 @@ class _RankPageState extends State<RankPage> {
                       answered: _answered,
                       streak: Store.streak,
                       correct: Rank.correctOf(),
+                      power: PowerChart.instance,
                     ),
                     style: const TextStyle(
                         fontSize: 15, letterSpacing: 0.6, fontWeight: FontWeight.w500),
@@ -214,7 +219,7 @@ class _RankPageState extends State<RankPage> {
               controller: _input,
               style: const TextStyle(fontSize: 13, letterSpacing: 0.4),
               decoration: InputDecoration(
-                hintText: '把朋友的对拼码贴在这里，例如 CX1-128-7-30-1A2B',
+                hintText: '把朋友的对拼码贴在这里，CX2 开头的会带上战力图',
                 hintStyle: TextStyle(fontSize: 11.5, color: AppColor.sub),
                 filled: true,
                 fillColor: AppColor.card,
@@ -258,10 +263,13 @@ class _RankPageState extends State<RankPage> {
     );
   }
 
-  Widget _tierRow(int i) {
-    final t = kTiers[i];
+  Widget _tierRow(RankTier t) {
     final reached = _answered >= t.at;
-    final current = Rank.tierIndex(_answered) == i;
+    final current = Rank.tierOf(_answered).name == t.name;
+    // 对拼的人爬到这一阶时，把他的战力图挂在这一行上，点开就能看
+    final rivalHere = _rival != null &&
+        Rank.tierOf(_rival!['answered'] as int).name == t.name &&
+        _rival!['power'] != null;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
@@ -273,15 +281,10 @@ class _RankPageState extends State<RankPage> {
       child: Row(
         children: [
           SizedBox(
-            width: 22,
-            child: Text('${i + 1}',
-                style: TextStyle(fontSize: 11, color: AppColor.sub)),
-          ),
-          SizedBox(
-            width: 62,
+            width: 66,
             child: Text(t.name,
                 style: TextStyle(
-                  fontSize: 13.5,
+                  fontSize: 13,
                   fontWeight: current ? FontWeight.w600 : FontWeight.w400,
                   color: reached ? AppColor.ink : AppColor.sub,
                 )),
@@ -290,7 +293,22 @@ class _RankPageState extends State<RankPage> {
             child: Text(t.note,
                 style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
           ),
-          const SizedBox(width: 8),
+          if (rivalHere)
+            GestureDetector(
+              onTap: () => _showRivalRadar(t),
+              child: Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.auto_awesome, size: 12, color: AppColor.accent),
+                    Text('看战力',
+                        style: TextStyle(fontSize: 10, color: AppColor.accent)),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(width: 4),
           Text(
             reached ? '已到' : '${t.at} 题',
             style: TextStyle(
@@ -303,6 +321,39 @@ class _RankPageState extends State<RankPage> {
     );
   }
 
+  void _showRivalRadar(RankTier tier) {
+    final pw = _rival?['power'] as PowerChart?;
+    if (pw == null) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 30),
+        decoration: BoxDecoration(
+          color: AppColor.card,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+          border: Border.all(color: AppColor.glassEdge),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('${tier.name} · 对方战力',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400)),
+            const SizedBox(height: 6),
+            Text('实线是你，虚线是对方',
+                style: TextStyle(fontSize: 11, color: AppColor.sub)),
+            const SizedBox(height: 12),
+            PowerRadar(
+              values: PowerChart.instance.normalized,
+              rival: pw.normalized,
+              size: 230,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _rivalCard() {
     final r = _rival!;
     final mine = _answered;
@@ -310,6 +361,7 @@ class _RankPageState extends State<RankPage> {
     final diff = mine - theirs;
     final myTier = Rank.tierOf(mine);
     final hisTier = Rank.tierOf(theirs);
+    final rivalPower = r['power'] as PowerChart?;
 
     final String verdict;
     if (diff > 0) {
@@ -339,6 +391,26 @@ class _RankPageState extends State<RankPage> {
           ),
           const SizedBox(height: 12),
           Text(verdict, style: const TextStyle(fontSize: 12.5, height: 1.6)),
+          if (rivalPower != null) ...[
+            const SizedBox(height: 14),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            Text('战力对照 · 实线是你，虚线是对方',
+                style: TextStyle(fontSize: 11, color: AppColor.sub)),
+            const SizedBox(height: 8),
+            Center(
+              child: PowerRadar(
+                values: PowerChart.instance.normalized,
+                rival: rivalPower.normalized,
+                size: 210,
+              ),
+            ),
+          ] else
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text('对方用的是旧对拼码，没有战力图。让他升级后重新发一次。',
+                  style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
+            ),
         ],
       ),
     );
@@ -362,5 +434,5 @@ class _RankPageState extends State<RankPage> {
 String rankSummaryLine() {
   final p = Profile.load();
   final n = p.answered.length;
-  return '${Rank.tierOf(n).name} · 已答 $n / ${QBank.instance.total}';
+  return '${Rank.tierOf(n).name} · 已答 $n 道';
 }

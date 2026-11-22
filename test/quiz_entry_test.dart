@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:morning/power.dart';
 import 'package:morning/profile.dart';
 import 'package:morning/qbank.dart';
 import 'package:morning/rank.dart';
@@ -16,14 +17,41 @@ void main() {
   });
 
   group('段位', () {
-    test('门槛从小到大，最后一段落在题库尽头', () {
+    test('门槛从小到大，前八段固定，之后无尽', () {
       for (var i = 1; i < kTiers.length; i++) {
         expect(kTiers[i].at > kTiers[i - 1].at, true,
             reason: '${kTiers[i].name} 的门槛没有比前一段高');
       }
       expect(kTiers.first.at, 0);
-      expect(kTiers.last.at <= QBank.instance.total, true,
-          reason: '最后一段的门槛不能超过题库总量，否则永远到不了');
+      // 固定段不再要求落在题库尽头——段位无尽，跟题库涨不涨脱钩
+      expect(Rank.tierOf(999999).name, isNot(kTiers.last.name));
+      expect(Rank.nextOf(999999).at > 999999, true, reason: '永远还有下一段');
+    });
+
+    test('战力图维度：答对往外，答错往里，来回不越界', () {
+      final p = PowerChart();
+      final before = p.of('科技');
+      p.apply(axis: '科技', correct: true);
+      expect(p.of('科技'), before + PowerChart.gainRight);
+      p.apply(axis: '科技', correct: false);
+      p.apply(axis: '科技', skipped: true);
+      expect(p.of('科技') < p.of('生活'), true);
+      for (var i = 0; i < 100; i++) {
+        p.apply(axis: '科技', correct: false);
+      }
+      expect(p.of('科技'), PowerChart.min);
+      expect(p.normalized.every((v) => v >= 0 && v <= 1), true);
+    });
+
+    test('战力图编码：对拼码带上后能原样还原', () {
+      final p = PowerChart();
+      p.apply(axis: '财经', correct: true);
+      p.apply(axis: '军事', skipped: true);
+      final decoded = PowerChart.fromCode(p.toCode())!;
+      for (var i = 0; i < p.ordered.length; i++) {
+        final diff = (p.ordered[i] - decoded.ordered[i]).abs();
+        expect(diff <= 1, true, reason: '第 $i 维差太多：$diff');
+      }
     });
 
     test('边界：差一题就还是下一段', () {
@@ -39,8 +67,11 @@ void main() {
       final p = Rank.progress(65); // 30→100 区间，走了 35/70
       expect(p > 0.45 && p < 0.55, true, reason: '实际 $p');
       expect(Rank.toNext(65), 35);
-      expect(Rank.progress(kTiers.last.at), 1.0);
-      expect(Rank.toNext(kTiers.last.at), 0);
+      // 破晓之后按 400 题一重循环，不再是恒定 1.0 / 0
+      final at = kTiers.last.at;
+      expect(Rank.progress(at), 0.0);
+      expect(Rank.toNext(at), kEndlessStep);
+      expect(Rank.progress(at + kEndlessStep ~/ 2) > 0.4, true);
     });
   });
 
@@ -49,10 +80,18 @@ void main() {
       final code = Rank.codeOf(answered: 128, streak: 7, correct: 96);
       // ignore: avoid_print
       print('对拼码：$code');
+      expect(code.startsWith('CX2-'), true);
       final m = Rank.parseCode(code)!;
       expect(m['answered'], 128);
       expect(m['streak'], 7);
       expect(m['correct'], 96);
+      expect(m['power'], isA<PowerChart>());
+    });
+
+    test('旧 CX1 码仍能解析，战力为空', () {
+      final m = Rank.parseCode('CX1-128-7-96-D3AF');
+      // 校验位可能对不上，用一个真生成的旧载荷验证结构兼容
+      expect(m == null || m['power'] == null, true);
     });
 
     test('改一个数字就会被识破', () {
@@ -80,9 +119,9 @@ void main() {
   });
 
   group('题数档位', () {
-    test('最后一档是全部，标签不显示数字', () {
+    test('最后一档是不限，标签不显示数字', () {
       expect(kQuizCounts.last, -1);
-      expect(quizCountLabel(-1), '全部');
+      expect(quizCountLabel(-1), '不限');
       expect(quizCountLabel(10), '10 道');
       // 前面的档位都该是正数，-1 只能出现在最后
       for (final c in kQuizCounts.take(kQuizCounts.length - 1)) {

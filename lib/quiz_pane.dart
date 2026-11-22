@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 
 import 'core.dart';
 import 'journal.dart';
+import 'power.dart';
 import 'profile.dart';
 import 'qbank.dart';
 import 'topics.dart';
@@ -142,6 +143,10 @@ class _QuizPaneState extends State<QuizPane> {
     final q = _quiz[_qi];
     _profile.recordSkip(q.topicId, id: q.id);
     _profile.save();
+    // 战力：这个领域扣分——跳过就是「这块我不喜欢 / 不熟」，
+    // 用户要的是答错和跳过都要在战力图上往下掉。
+    PowerChart.instance.apply(axis: q.axis, skipped: true);
+    PowerChart.instance.save();
     _skipped++;
     Journal.add(
       JKind.quiz,
@@ -203,6 +208,14 @@ class _QuizPaneState extends State<QuizPane> {
           _profile.recordPref(q.id, q.weights[i]);
         }
       }
+      // 偏好题没有对错，选中项命中的领域各加一点战力
+      for (final i in picked) {
+        if (i >= 0 && i < q.weights.length) {
+          for (final axis in q.weights[i].keys) {
+            PowerChart.instance.apply(axis: axis, pref: true);
+          }
+        }
+      }
     } else {
       // 答对给满证据；多选漏选六成；答错也给三成半——
       // 答错说明碰过这块，只是没掌握，跟「不关心」不是一回事。
@@ -213,8 +226,15 @@ class _QuizPaneState extends State<QuizPane> {
         axis: q.axis,
         credit: credit,
       );
+      // 战力：答对加、答错扣——和画像的本子分开记，战力图才有起伏
+      PowerChart.instance.apply(
+        axis: q.axis,
+        correct: g.correct,
+        partial: g.partial,
+      );
     }
     _profile.save();
+    PowerChart.instance.save();
 
     final String detail;
     if (q.kind == QKind.pref) {

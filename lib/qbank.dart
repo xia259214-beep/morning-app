@@ -301,13 +301,12 @@ class Mix {  final int single;
   }
 }
 
-/// 一轮的题数档位。-1 表示「全部」，也就是把题库走完。
-///
-/// 最后这一档是有意留的：早上时间短，注册那天只答得完二三十道，
-/// 但有人想一次把这座山走完——那就得有个地方能选。
+/// 一轮的题数档位。-1 表示「不限」：把当前题库整轮端出来，答完自动轮回
+/// 继续出，没有「走完」这回事。题库本身是数据驱动的，往 seed 里加一行
+/// 事实卡就长 5~8 道题，到 2000 道以后照样能接着加。
 const List<int> kQuizCounts = <int>[3, 5, 10, 20, 30, 50, -1];
 
-String quizCountLabel(int v) => v < 0 ? '全部' : '$v 道';
+String quizCountLabel(int v) => v < 0 ? '不限' : '$v 道';
 
 /// 答满这么多题之后，才从「铺轮廓」转成「往下钻」。
 ///
@@ -538,6 +537,26 @@ List<String> auditQBank() {
       if (rights.contains(q.options[i])) {
         bad.add('正向单选的干扰项其实是别处的正确说法：${q.id}');
       }
+    }
+  }
+
+  // 联动性与合理性：一道题的选项不该自相重复，正确说法也不能是空话。
+  // 这些是「一眼假」之外更容易被用户当场指出来的毛病，先在这里挡住。
+  for (final q in QBank.instance.all) {
+    if (q.options.any((o) => o.trim().isEmpty)) {
+      bad.add('选项里有空白：${q.id}');
+    }
+    final distinct = q.options.map((o) => o.trim()).toSet();
+    if (distinct.length != q.options.length) {
+      bad.add('选项自相重复：${q.id}');
+    }
+  }
+  for (final f in TopicTree.instance.facts) {
+    if (f.right.trim().isEmpty) {
+      bad.add('正确说法是空的：${f.topicId}/${f.title}');
+    }
+    if (f.wrongs.any((w) => w.trim() == f.right.trim())) {
+      bad.add('误解和正确说法一模一样：${f.topicId}/${f.title}');
     }
   }
 
