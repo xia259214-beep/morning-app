@@ -41,6 +41,16 @@ object AlarmStore {
     /** 追赶闹钟的 requestCode。负数避免和用户创建的闹钟（从 1 开始）撞号。 */
     private const val CHASE_ID = -77
     private const val KEY_SNOOZE_DAY = "snooze_day"
+    private const val KEY_SNOOZE_COUNT = "snooze_count"
+
+    /**
+     * v1.13.0：一天允许贪睡两次，第三次响铃不再给按钮，直接进强制播报。
+     *
+     * 流程（用户定的）：第一次响 →「贪睡 5 分钟」→ 第二次响 → 再「贪睡 5 分钟」
+     * → 第三次响就是晨间播报，播报不能关、不能退，只有拍了门外照片才停。
+     * 两次是上限：再多就等于闹钟可以被无限推迟，所谓「必须打卡」不成立。
+     */
+    const val MAX_SNOOZE = 2
     private const val KEY_CHASE_DAY = "chase_day"
     private const val KEY_CHASE_COUNT = "chase_count"
 
@@ -277,14 +287,94 @@ object AlarmStore {
     /**
      * 今天还能不能贪睡。
      *
-     * 一天只给一次，而且是**跨所有闹钟**算的：设了 7:00 和 7:30 两个闹钟，
-     * 在 7:00 用掉额度之后，7:30 那次也没有了。按单个闹钟算的话，
-     * 想赖床的人多设几个闹钟就把限制绕过去了。
+     * v1.13.0：额度从「一天一次」改为「一天两次，跨所有闹钟算」。
+     * 用完之后第三次响铃直接进强制播报（[isForcedBroadcast]），不再给贪睡按钮。
+     * 按单个闹钟算的话，想赖床的人多设几个闹钟就把限制绕过去了。
      */
-    fun canSnooze(c: Context): Boolean = prefs(c).getString(KEY_SNOOZE_DAY, "") != today()
+    fun canSnooze(c: Context): Boolean = snoozeCount(c) < MAX_SNOOZE
+
+    /** 今天已经贪睡过几次 */
+    fun snoozeCount(c: Context): Int {
+        val p = prefs(c)
+        return if (p.getString(KEY_SNOOZE_DAY, "") == today()) p.getInt(KEY_SNOOZE_COUNT, 0) else 0
+    }
 
     fun markSnoozeUsed(c: Context) {
-        prefs(c).edit().putString(KEY_SNOOZE_DAY, today()).apply()
+        val n = snoozeCount(c) + 1
+        prefs(c).edit().putString(KEY_SNOOZE_DAY, today()).putInt(KEY_SNOOZE_COUNT, n).apply()
+    }
+
+    /** 两次贪睡都用完了：下一次响铃就是强制播报，不给任何关闭入口 */
+    fun isForcedBroadcast(c: Context): Boolean = snoozeCount(c) >= MAX_SNOOZE
+
+    /** 打卡完成 / 主动放弃 / 换新的一天：清空贪睡额度 */
+    fun resetSnooze(c: Context) {
+        prefs(c).edit().remove(KEY_SNOOZE_DAY).remove(KEY_SNOOZE_COUNT).apply()
+    }
+
+    /**
+     * 当天要播的新闻正文（Flutter 进流程时写好）。
+     * 强制播报在响铃页里念，不等 Flutter 引擎起来——锁屏冷启动时引擎要好几秒。
+     */
+    fun newsSpeech(c: Context): String = prefs(c).getString("newsSpeech", "") ?: ""
+
+    /** 拉起 App 时告诉 Flutter 从哪一步开始（3 = 直接到打卡） */
+    fun setFlowStartStep(c: Context, step: Int) {
+        prefs(c).edit().putString("flowStartStep", step.toString()).apply()
+    }
+
+    // ------------------------------------------------------------ 强制播报保活
+    /**
+     * 强制播报的「拉回前台」闹钟，每 20 秒一发。
+     *
+     * 为什么不用 App 内部的 Handler 循环：真机实测（MIUI / HyperOS），按 Home 键后
+     * 系统会把整个进程冻结，Handler、TTS 全部停摆——App 内部的循环斗不过系统冻结。
+     * 而精确闹钟（setExactAndAllowWhileIdle）由系统代发，触发时强制解冻进程，
+     * 接收器里再把响铃页拽回前台。这才是「播报不能被打断、关掉也不可以」的系统级实现。
+     */
+    private const val BROADCAST_KEEP_ID = -88
+    private const val BROADCAST_KEEP_MS = 20_000L
+
+    fun scheduleBroadcastKeep(c: Context) {
+        val am = c.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val op = PendingIntent.getBroadcast(
+            c, BROADCAST_KEEP_ID,
+            Intent(c, AlarmReceiver::class.java).apply {
+                action = "cn.morning.morning.BROADCAST_KEEP"
+                putExtra("type", "broadcast_keep")
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        try {
+            am.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                System.currentTimeMillis() + BROADCAST_KEEP_MS,
+                op
+            )
+        } catch (e: Exception) {
+            try {
+                am.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + BROADCAST_KEEP_MS, op)
+            } catch (e2: Exception) {
+                // 排不上就只能靠 App 内部循环
+            }
+        }
+    }
+
+    fun cancelBroadcastKeep(c: Context) {
+        try {
+            val am = c.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            am.cancel(
+                PendingIntent.getBroadcast(
+                    c, BROADCAST_KEEP_ID,
+                    Intent(c, AlarmReceiver::class.java).apply {
+                        action = "cn.morning.morning.BROADCAST_KEEP"
+                    },
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+        } catch (e: Exception) {
+            // 忽略
+        }
     }
 
     // ---------------------------------------------------------------- 追赶

@@ -187,8 +187,19 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     try {
       // 记下「今天这次流程还没收尾」，按 Home 回来后靠它把人拽回来
       if (locked) Store.set('flowPending', Store.today);
+      // v1.13.0：强制播报模式点了「我已出门」后，原生写 flowStartStep=3，
+      // 流程直接从打卡开始。读完立刻清掉，否则下次正常流程也会跳到打卡。
+      // 注意必须走 Bridge 实时读：Store.settings 是启动时载入的内存副本，
+      // 原生侧刚写进去的值在这里是看不到的（真机实测踩过）。
+      var startStep = 0;
+      if (locked) {
+        final raw = await Bridge.getPref('flowStartStep');
+        startStep = (int.tryParse(raw ?? '') ?? 0).clamp(0, 3);
+        if (startStep != 0) await Bridge.setPref('flowStartStep', '0');
+      }
       await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => MorningFlowPage(alarmId: alarmId, locked: locked),
+        builder: (_) =>
+            MorningFlowPage(alarmId: alarmId, locked: locked, startStep: startStep),
       ));
       if (mounted) setState(() => _refreshKey++);
     } finally {

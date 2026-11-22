@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'core.dart';
 import 'glass.dart';
 import 'journal.dart';
+import 'outdoor.dart';
 import 'qbank.dart';
 import 'pages_glass.dart';
 import 'pages_quiz.dart';
@@ -1006,6 +1007,8 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 18),
           _section('可靠性'),
           _navTile('权限诊断', '精准闹钟 / 通知 / 相机 / 电池 / 语音', const PermissionsPage()),
+          // v1.13.0：出门判定的基准。没有它，打卡就只是一张照片，证明不了「人出去了」
+          _navTile('出门基准照', '拍下门外常看到的样子，打卡时用来比对', const OutdoorBaselinePage()),
           _rowTile('测试响铃', '10 秒后触发', onTap: () async {
             await Bridge.ringTest();
             if (!context.mounted) return;
@@ -1524,6 +1527,202 @@ class _ThemePageState extends State<ThemePage> {
               Icon(Icons.circle_outlined, size: 20, color: AppColor.line),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// 出门基准照（v1.13.0）
+//
+// 用户的原话是：「怎么才能确定他出门和没出门？……必须要让他拍生活上能拍到的
+// 图片、路边、电梯、门口、小区门口这些图片。」
+//
+// 这里就是收这几张基准的地方。打卡时的比对逻辑在 lib/outdoor.dart：
+// 把新照片缩到 24×24 灰度，和每张基准算归一化相关，取最高分。
+// 它判的不是「这是哪条街」，而是「这张画面像不像你平常出门看到的样子」——
+// 要求再高就得引入定位/步数/场景识别，那是 V2 的出门证据链。
+// ============================================================================
+
+class OutdoorBaselinePage extends StatefulWidget {
+  const OutdoorBaselinePage({super.key});
+
+  @override
+  State<OutdoorBaselinePage> createState() => _OutdoorBaselinePageState();
+}
+
+class _OutdoorBaselinePageState extends State<OutdoorBaselinePage> {
+  static const _tags = ['门口', '电梯', '路边', '小区门口'];
+  String _tag = '门口';
+  List<Map<String, String>> _list = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _load() {
+    if (!mounted) return;
+    setState(() => _list = Outdoor.all());
+  }
+
+  void _toast(String s) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s)));
+  }
+
+  Future<void> _shoot() async {
+    final p = await Bridge.takePhoto();
+    if (!mounted) return;
+    if (p == null || p.isEmpty) {
+      _toast('未获取到照片（可能取消了拍摄或未授予相机权限）');
+      return;
+    }
+    await Outdoor.add(p, _tag);
+    _load();
+    _toast('已登记「$_tag」基准照（共 ${Outdoor.all().length} 张）');
+  }
+
+  Future<void> _clear() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('清空基准照？'),
+        content: const Text('清空后打卡不再做比对，只保留照片作证。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('取消')),
+          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('清空')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    Outdoor.clear();
+    _load();
+    _toast('已清空');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: const Text('出门基准照',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColor.glassPanel,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              '先拍几张你平常出门看到的画面：门口、电梯、路边、小区门口各一张最好。\n\n'
+              '打卡时 App 会拿新照片跟这些比对：像 → 判定已在门外；不像 → 提示你重拍。'
+              '它的作用是让「躺着拍天花板」过不去，不是密码级验证——夜里和大雾天判定会变宽松。',
+              style: TextStyle(fontSize: 12, height: 1.75, color: AppColor.sub),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text('这次拍的是', style: TextStyle(fontSize: 12, color: AppColor.sub)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _tags
+                .map((t) => ChoiceChip(
+                      label: Text(t, style: const TextStyle(fontSize: 12)),
+                      selected: _tag == t,
+                      onSelected: (_) => setState(() => _tag = t),
+                      selectedColor: AppColor.accentSoft,
+                      backgroundColor: AppColor.glassCard,
+                      side: BorderSide(color: AppColor.glassEdge),
+                      showCheckmark: false,
+                    ))
+                .toList(),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 50,
+            child: FilledButton.icon(
+              onPressed: _shoot,
+              icon: const Icon(Icons.camera_alt_outlined, size: 18),
+              label: Text(_list.isEmpty ? '拍第一张基准照' : '再拍一张（$_tag）'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColor.ink,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 22),
+          Row(
+            children: [
+              Text('已登记 ${_list.length} 张',
+                  style: TextStyle(fontSize: 12, color: AppColor.sub)),
+              const Spacer(),
+              if (_list.isNotEmpty)
+                TextButton(onPressed: _clear, child: const Text('清空', style: TextStyle(fontSize: 12))),
+            ],
+          ),
+          const SizedBox(height: 6),
+          if (_list.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 34),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColor.glassCard,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColor.glassEdge),
+              ),
+              child: Text('还没有基准照，打卡时不会比对',
+                  style: TextStyle(fontSize: 12, color: AppColor.sub)),
+            )
+          else
+            ..._list.map((e) => Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColor.glassCard,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColor.glassEdge),
+                  ),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.file(
+                          File(e['path']!),
+                          width: 62,
+                          height: 62,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 62,
+                            height: 62,
+                            color: AppColor.line.withOpacity(0.3),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(e['tag']!.isEmpty ? '未命名' : e['tag']!,
+                            style: const TextStyle(fontSize: 13)),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.close, size: 18, color: AppColor.sub),
+                        onPressed: () async {
+                          await Outdoor.remove(e['path']!);
+                          _load();
+                        },
+                      ),
+                    ],
+                  ),
+                )),
+        ],
       ),
     );
   }

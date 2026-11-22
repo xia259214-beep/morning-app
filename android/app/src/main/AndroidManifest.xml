@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- 强制播报模式：被权限弹窗/Home 键打断后把响铃页拉回前台 -->
+    <uses-permission android:name="android.permission.REORDER_TASKS" />
     <!-- 拍照走系统相机的 ACTION_IMAGE_CAPTURE，按官方约定不需要 CAMERA 权限，
          故不声明，用户少一道授权弹窗 -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />

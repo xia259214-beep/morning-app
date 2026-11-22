@@ -7,6 +7,7 @@ import 'core.dart';
 import 'focus.dart';
 import 'journal.dart';
 import 'morning_news.dart';
+import 'outdoor.dart';
 import 'profile.dart';
 import 'quiz_pane.dart';
 
@@ -162,10 +163,20 @@ class MorningFlowPage extends StatefulWidget {
   /// 锁住的结果是他连自己的 App 都退不出去，只能杀进程。
   final bool locked;
 
+  /// v1.13.0：从第几步开始。
+  /// 强制播报模式点「我已出门」时，原生写 flowStartStep=3，直接到打卡——
+  /// 唤醒 / 答题 / 播报那三步已经发生过了，不该再让他重来一遍。
+  final int startStep;
+
   /// 是否正开着。追赶闹钟弹回来时用它避免叠出第二层流程页。
   static bool isOpen = false;
 
-  const MorningFlowPage({super.key, required this.alarmId, this.locked = true});
+  const MorningFlowPage({
+    super.key,
+    required this.alarmId,
+    this.locked = true,
+    this.startStep = 0,
+  });
 
   @override
   State<MorningFlowPage> createState() => _MorningFlowPageState();
@@ -197,6 +208,10 @@ class _MorningFlowPageState extends State<MorningFlowPage> {
 
   String _photo = '';
   bool _checkinLogged = false;
+
+  /// v1.13.0 出门判定：打卡照与基准照的比对结论
+  OutdoorVerdict? _verdict;
+  int _photoAttempts = 0;
   late MorningRecord _record;
 
   /// 「我确实拍不了」要按住 3 秒才生效。
@@ -215,8 +230,16 @@ class _MorningFlowPageState extends State<MorningFlowPage> {
     // 当天固定的三条：优先用真实新闻引擎的缓存（和新闻页「今日」栏同一批），
     // 断网 / 从未刷新过时 MorningNews.pick 内部回落到内置示例，保证离线可用。
     _news = MorningNews.pick(_profile);
+    // v1.13.0：把当天新闻写进 prefs。强制播报在响铃页里由原生 TTS 念，
+    // 锁屏冷启动时 Flutter 引擎还没起来，播报不能等它。
+    Store.set(
+      'newsSpeech',
+      _news.take(6).map((e) => '${e.title}。${e.summary}').join('\n'),
+    );
     _record = Store.upsertToday(widget.alarmId);
     _record.wokeAt = DateTime.now().millisecondsSinceEpoch;
+    // 强制播报点「我已出门」进来的那一次：直接到打卡
+    _step = widget.startStep.clamp(0, 3);
     _probeTts();
   }
 
@@ -485,7 +508,37 @@ class _MorningFlowPageState extends State<MorningFlowPage> {
       );
       return;
     }
-    setState(() => _photo = p);
+    // v1.13.0：拍完立刻跟门外基准照比对，结论写在照片下面。
+    // 比对放在这里而不是「完成打卡」时，是因为早一点告诉他「这张不像门外」，
+    // 他还能在门口原地重拍；等点了完成才说，人已经在电梯里了。
+    final v = await Outdoor.verify(p);
+    if (!mounted) return;
+    setState(() {
+      _photo = p;
+      _verdict = v;
+      _photoAttempts++;
+    });
+    if (v.hasBaseline && !v.pass) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('这张和门外基准照只像 ${v.percent}%，'
+              '到门口 / 电梯 / 路边再拍一张更像的'),
+        ),
+      );
+    }
+  }
+
+  /// 能不能点「完成打卡」。
+  ///
+  /// - 没登记基准照：放行，但界面会说明「这次只留证」——不能因为用户没登记就把他锁死；
+  /// - 有基准照：比对通过的才放行；
+  /// - 连续拍 3 张都不通过：放行，但记成「存疑打卡」并写进日志。
+  ///   这条兜底是必要的：镜头脏了、起了大雾、手机相机坏了，都会让人永远出不去。
+  bool get _canFinishCheckin {
+    if (_photo.isEmpty) return false;
+    final v = _verdict;
+    if (v == null || !v.hasBaseline) return true;
+    return v.pass || _photoAttempts >= 3;
   }
 
   /// 落盘今日记录。做成幂等：重复调用只是覆盖同一字段，不会插入新记录。
@@ -504,15 +557,25 @@ class _MorningFlowPageState extends State<MorningFlowPage> {
     // 打卡只在第一次完成时记一笔。重复进来不该在日志里出现两条。
     if (!_checkinLogged) {
       _checkinLogged = true;
+      final v = _verdict;
+      final uncertain = checkedIn && v != null && v.hasBaseline && !v.pass;
       Journal.add(
         JKind.checkin,
-        checkedIn ? '出门打卡' : '没打卡就结束了',
-        detail: checkedIn ? '照片已存入记录' : '用了「我确实拍不了」，今天记为未打卡',
-        verdict: checkedIn ? 'right' : 'wrong',
+        checkedIn ? (uncertain ? '出门打卡（存疑）' : '出门打卡') : '没打卡就结束了',
+        detail: checkedIn
+            ? (v == null || !v.hasBaseline
+                ? '照片已存入记录 · 未登记门外基准照，仅留证'
+                : '照片已存入记录 · 与基准照「${v.matchedTag}」相似 ${v.percent}%'
+                    '${uncertain ? ' · 连拍 3 张未过，记为存疑' : ''}')
+            : '用了「我确实拍不了」，今天记为未打卡',
+        verdict: checkedIn ? (uncertain ? 'wrong' : 'right') : 'wrong',
       );
     }
     // 流程已经结束：不管打卡还是放弃，追赶都必须停，否则今天还会被拉回来
     await Bridge.cancelChase();
+    // v1.13.0：流程结束 → 停播报、关响铃页、清空今天的贪睡额度。
+    // 打卡和放弃都要调：不能让播报在「按住 3 秒放弃」之后一直念下去。
+    await Bridge.stopRing();
     // 也没有「欠着的流程」了，回 App 时不该再被塞回这里
     Store.set('flowPending', '');
   }
@@ -884,7 +947,8 @@ class _MorningFlowPageState extends State<MorningFlowPage> {
           const Text('出门打卡', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w300)),
           const SizedBox(height: 8),
           Text(
-            '拍一张你眼前的画面——窗外、楼下、地铁，任何能证明「你起床了」的瞬间。',
+            '拍一张门外的画面——门口、电梯、路边、小区门口都行。'
+            '有登记基准照时，会先跟你平常出门的样子比一比。',
             style: TextStyle(fontSize: 12.5, height: 1.7, color: AppColor.sub),
           ),
           const SizedBox(height: 20),
@@ -905,6 +969,32 @@ class _MorningFlowPageState extends State<MorningFlowPage> {
             ),
           ),
           const SizedBox(height: 16),
+          // v1.13.0：出门判定结论。三行文案对应三种状态，别让人猜为什么按钮是灰的。
+          if (_verdict != null)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: _canFinishCheckin ? AppColor.accentSoft : AppColor.glassCard,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColor.glassEdge),
+              ),
+              child: Text(
+                !_verdict!.hasBaseline
+                    ? '还没登记门外基准照，这次只把照片留证。去「我的 → 出门基准照」登记后才会开始比对。'
+                    : _verdict!.pass
+                        ? '✓ 和基准照「${_verdict!.matchedTag}」相似 ${_verdict!.percent}%，判定：已在门外'
+                        : _photoAttempts >= 3
+                            ? '⚠ 连拍 3 张都只像 ${_verdict!.percent}%，可以打卡，但今天会记为「存疑」'
+                            : '⚠ 只像 ${_verdict!.percent}%，不太像门外。到门口 / 电梯 / 路边再拍一张（还能重拍 ${3 - _photoAttempts} 次）',
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.6,
+                  color: _canFinishCheckin ? AppColor.ink : AppColor.sub,
+                ),
+              ),
+            ),
           Row(
             children: [
               Expanded(
@@ -931,7 +1021,7 @@ class _MorningFlowPageState extends State<MorningFlowPage> {
                       backgroundColor: AppColor.ink,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
-                    onPressed: _photo.isEmpty ? null : _toDone,
+                    onPressed: _canFinishCheckin ? _toDone : null,
                     child: const Text('完成打卡'),
                   ),
                 ),

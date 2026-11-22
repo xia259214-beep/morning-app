@@ -20,6 +20,13 @@ import android.content.Intent
  */
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        // 强制播报保活：每 20 秒把响铃页拽回前台。进程被 MIUI 冻结时，
+        // 精确闹钟会强制解冻——这是「播报不能被打断」的系统级兜底。
+        if (intent.getStringExtra("type") == "broadcast_keep") {
+            onBroadcastKeep(context)
+            return
+        }
+
         // 追赶：用户点了「起床」但一直没打卡。这条路不响铃，只是把流程页拉回来。
         if (intent.getBooleanExtra("chase", false)) {
             onChase(context)
@@ -137,6 +144,50 @@ class AlarmReceiver : BroadcastReceiver() {
             km.isKeyguardLocked
         } catch (e: Exception) {
             true
+        }
+    }
+
+    /**
+     * 强制播报保活触发。
+     *
+     * 判定是否还在播报：RingActivity.broadcastActive（进程活着时可靠），
+     * 进程被杀后静态量归零，就靠 prefs 里的 broadcast_active 标记续上——
+     * 标记带日期，隔天自动失效，不会出现「昨天没打完卡，今天还一直弹」。
+     */
+    private fun onBroadcastKeep(context: Context) {
+        val p = AlarmStore.prefs(context)
+        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+            .format(java.util.Date())
+        if (p.getString("broadcast_day", "") != today) {
+            AlarmStore.cancelBroadcastKeep(context)
+            return
+        }
+        val stillOn = RingActivity.broadcastActive || p.getString("broadcast_active", "") == "1"
+        if (!stillOn) {
+            AlarmStore.cancelBroadcastKeep(context)
+            return
+        }
+        // 先排下一次再拉页：万一 startActivity 被拦，链条也不能断
+        AlarmStore.scheduleBroadcastKeep(context)
+
+        // 全屏意图通知：这是和真闹钟同一条通路，进程被冻结时系统也会执行 FSI。
+        // 实测后台直接 startActivity 在 MIUI 上会被拦（见 onReceive 注释），FSI 不会。
+        AlarmStore.notifyRing(context, p.getInt("last_ring_alarm", -99), "晨间播报", fsi = true)
+
+        // App 在前台时的快速路径
+        if (!isLocked(context)) {
+            val i = Intent(context, RingActivity::class.java).apply {
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_NO_USER_ACTION
+                )
+            }
+            try {
+                context.startActivity(i)
+            } catch (e: Exception) {
+                // 被拦就靠上面的 FSI
+            }
         }
     }
 }

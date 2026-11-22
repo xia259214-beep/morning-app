@@ -207,6 +207,28 @@ class MainActivity : FlutterActivity() {
                     result.success(true)
                 }
 
+                // v1.13.0：打卡成功 → 停掉强制播报、关掉响铃页、清空今天的贪睡额度。
+                // 这是「闹钟什么时候才算结束」的唯一出口：铃声和播报都只认这一个回调。
+                "stopRing" -> {
+                    try {
+                        RingActivity.instance?.finishFromCheckin()
+                    } catch (e: Exception) {
+                        // 响铃页不在时忽略
+                    }
+                    AlarmStore.cancelRingNotification(this)
+                    AlarmStore.resetSnooze(this)
+                    result.success(true)
+                }
+
+                // 今天还能贪睡几次 / 现在是不是强制播报模式，供 Flutter 界面提示
+                "snoozeState" -> result.success(
+                    mapOf(
+                        "count" to AlarmStore.snoozeCount(this),
+                        "max" to AlarmStore.MAX_SNOOZE,
+                        "forced" to AlarmStore.isForcedBroadcast(this)
+                    )
+                )
+
                 // 已经追了几轮，用于流程页顶部提示「第 n 次提醒你还没打卡」
                 "chaseRound" -> result.success(AlarmStore.chaseRound(this))
 

@@ -379,6 +379,16 @@ class Bridge {
 
   static Future<void> stopSpeak() => _call('stopSpeak');
 
+  /// v1.13.0：打卡成功 → 停掉强制播报、关掉响铃页、清空今天的贪睡额度。
+  /// 这是「闹钟什么时候才算结束」的唯一出口。
+  static Future<void> stopRing() => _call('stopRing');
+
+  /// 今天贪睡了几次 / 上限几次 / 现在是不是强制播报模式
+  static Future<Map<String, dynamic>> snoozeState() async {
+    final r = await _call<Map>('snoozeState');
+    return r == null ? <String, dynamic>{} : Map<String, dynamic>.from(r);
+  }
+
   /// v1.9.0：播报语速，立刻作用于已绑定的系统语音引擎。
   static Future<void> setSpeechRate(double rate) =>
       _call('setSpeechRate', {'rate': rate});
