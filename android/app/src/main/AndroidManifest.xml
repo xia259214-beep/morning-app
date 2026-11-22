@@ -32,7 +32,7 @@
          files/photos 下的打卡照片一起交给系统备份（云备份或 adb backup）。
          这些内容是个人作息与阅读偏好，不该出应用沙箱，故显式关闭。 -->
     <application
-        android:label="晨序 MORNING"
+        android:label="晨序MORNING"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"

@@ -65,7 +65,7 @@ class MorningApp extends StatelessWidget {
         builder: (context, glassId, __) {
           _applyStatusBar();
           return MaterialApp(
-            title: '晨序 MORNING',
+            title: '晨序MORNING',
             debugShowCheckedModeBanner: false,
             theme: buildAppTheme(),
             // 整棵树底下铺一层会呼吸的水晶背景，所有页面共用，
