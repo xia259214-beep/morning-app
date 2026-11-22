@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 响铃页次按钮（贪睡）：细描边幽灵药丸，弱化视觉重量 -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#22B9AC9A">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#00000000" />
+            <stroke
+                android:width="1dp"
+                android:color="#6E655A" />
+            <corners android:radius="30dp" />
+        </shape>
+    </item>
+</ripple>

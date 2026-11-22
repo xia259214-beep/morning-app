@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 响铃页主按钮（起床 / 我已出门）：暖白渐变药丸，替代默认方形 Material 按钮 -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#2EB99F82">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:startColor="#F8F1E5"
+                android:endColor="#E4D3BC" />
+            <corners android:radius="30dp" />
+        </shape>
+    </item>
+</ripple>
