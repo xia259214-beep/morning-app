@@ -16,6 +16,7 @@ import android.provider.MediaStore
 import android.provider.Settings
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.speech.tts.Voice
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -533,6 +534,16 @@ class MainActivity : FlutterActivity() {
                 engine.setPitch(1.0f)
             } catch (e: Exception) {
             }
+            // v1.12.1：从引擎可用音色里挑中文女声。为什么挑：真实新闻没有随包真人录音，
+            // 会退回系统 TTS；而小米等引擎的默认音色单薄刺耳（用户反馈「太空、太刺耳」）。
+            // 挑不出来时保持引擎默认，宁可不动也别换一个更差的。
+            try {
+                val picked: Voice? = pickBestVoice(engine)
+                if (picked != null && engine.setVoice(picked) == TextToSpeech.SUCCESS) {
+                    Log.i("MorningTts", "voice=${picked.name} quality=${picked.quality}")
+                }
+            } catch (e: Exception) {
+            }
 
             // 合成进度监听：真机排查全靠它。onStart 出现说明引擎接单了，
             // onError 带错误码说明引擎接单但合成失败（缺语音包最常见）。
@@ -618,6 +629,39 @@ class MainActivity : FlutterActivity() {
      * 截断的 mp3，那种文件 MediaPlayer 打不开，而 length>0 又骗过了存在性检查
      * ——结果每一条都悄悄退回系统音色。
      */
+    /**
+     * 从引擎可用音色里挑最适合播报的中文女声。
+     *
+     * 为什么挑：真实新闻条目没有随包真人录音，只能走系统 TTS，而默认音色
+     * 在小米等引擎上单薄刺耳（用户反馈「太空、太刺耳」）。
+     * 挑选优先级：本地中文女声 > 本地中文 > 什么都不选（保持引擎默认）。
+     * 只挑本地音色：需要联网的音色在断网早上会变哑巴，违背离线可用的底线。
+     */
+    private fun pickBestVoice(engine: TextToSpeech): Voice? {
+        val all = try {
+            engine.voices ?: return null
+        } catch (e: Exception) {
+            return null
+        }
+        val zh = all.filter {
+            // fallback 音色的 locale 一般是 eng，zh 过滤已能排除；不直接用
+            // Voice.isFallback()，该 API 在部分编译目标下无法解析
+            it.locale?.language == "zh" && !it.isNetworkConnectionRequired
+        }
+        if (zh.isEmpty()) return null
+        // 讯飞/小米/谷歌各家中文女声的常见命名：小燕、小晓、小爱、female…
+        val femaleHints = listOf(
+            "xiaoyan", "xiaoxiao", "xiaoyu", "xiaomei", "xiaoai", "xiaoyun",
+            "female", "woman", "f_", "-f-", "_f", "luna", "meijia"
+        )
+        return zh.firstOrNull { v ->
+            val n = v.name.lowercase()
+            femaleHints.any { n.contains(it) }
+        } ?: zh.firstOrNull { v ->
+            v.locale.country == "CN"
+        } ?: zh.first()
+    }
+
     private fun sampleFile(name: String): File? {
         return try {
             val f = File(cacheDir, "tts_$name.mp3")
