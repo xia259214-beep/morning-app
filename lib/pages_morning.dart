@@ -723,7 +723,12 @@ class _MorningFlowPageState extends State<MorningFlowPage> {
         _correct = t.correct;
         setState(() => _step = 2);
       },
-      onEarlyStop: () => setState(() => _step = 2),
+      onEarlyStop: (t) {
+        // 提前结束也要把已答的成绩带走，否则完成页会显示「答题 0 题」
+        _answeredCount = t.answered;
+        _correct = t.correct;
+        setState(() => _step = 2);
+      },
       earlyStopLabel: '够了，先去看新闻',
     );
   }

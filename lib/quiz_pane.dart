@@ -51,7 +51,11 @@ class QuizPane extends StatefulWidget {
   final void Function(QuizTally tally) onFinish;
 
   /// 「够了，先这样」。不传就不显示这个出口。
-  final VoidCallback? onEarlyStop;
+  ///
+  /// v1.12.2：回调带上 [QuizTally]。以前是 VoidCallback，提前结束时本轮已答的
+  /// 题数、正确数全被丢掉——晨间完成页于是显示「答题 0 题」，答题页小结显示
+  /// 「这一轮 0」：用户明明答了七八道，成绩却像没答过。行为不变，只是把成绩交出去。
+  final void Function(QuizTally tally)? onEarlyStop;
   final String earlyStopLabel;
 
   /// 至少答几道才允许提前结束
@@ -342,7 +346,7 @@ class _QuizPaneState extends State<QuizPane> {
               padding: const EdgeInsets.only(top: 2),
               child: Center(
                 child: TextButton(
-                  onPressed: widget.onEarlyStop,
+                  onPressed: () => widget.onEarlyStop!(_tally),
                   child: Text(widget.earlyStopLabel,
                       style: TextStyle(fontSize: 12.5, color: AppColor.sub)),
                 ),

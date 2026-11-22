@@ -196,8 +196,12 @@ class _QuizPageState extends State<QuizPage> {
           _done = true;
         });
       },
-      onEarlyStop: () {
-        setState(() => _done = true);
+      onEarlyStop: (t) {
+        setState(() {
+          // 提前结束同样要并入本轮成绩，否则小结页「这一轮」显示 0
+          _tally = _tally + t;
+          _done = true;
+        });
       },
       earlyStopLabel: '先停一下，看看成绩',
     );
