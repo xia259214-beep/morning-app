@@ -35,7 +35,7 @@ class _MorningTabPageState extends State<MorningTabPage> {
           const Text('晨间流程', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w300)),
           const SizedBox(height: 6),
           Text(
-            '唤醒 → 答题 → 播报 → 打卡',
+            '唤醒 → 贪睡一次 → 新闻播报 → 门外打卡',
             style: TextStyle(fontSize: 12, color: AppColor.sub, letterSpacing: 1),
           ),
           const SizedBox(height: 22),

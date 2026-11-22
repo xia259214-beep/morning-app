@@ -44,13 +44,13 @@ object AlarmStore {
     private const val KEY_SNOOZE_COUNT = "snooze_count"
 
     /**
-     * v1.13.0：一天允许贪睡两次，第三次响铃不再给按钮，直接进强制播报。
+     * v1.13.5：一天只允许贪睡一次，第二次响铃不再给按钮，直接进强制播报。
      *
-     * 流程（用户定的）：第一次响 →「贪睡 5 分钟」→ 第二次响 → 再「贪睡 5 分钟」
-     * → 第三次响就是晨间播报，播报不能关、不能退，只有拍了门外照片才停。
-     * 两次是上限：再多就等于闹钟可以被无限推迟，所谓「必须打卡」不成立。
+     * 流程（用户定的）：第一次响 →「贪睡 5 分钟」→ 第二次响就是晨间播报，
+     * 播报不能关、不能退，只有拍了门外照片才停。
+     * 一次是上限：再多就等于闹钟可以被无限推迟，所谓「必须打卡」不成立。
      */
-    const val MAX_SNOOZE = 2
+    const val MAX_SNOOZE = 1
     private const val KEY_CHASE_DAY = "chase_day"
     private const val KEY_CHASE_COUNT = "chase_count"
 
@@ -288,7 +288,7 @@ object AlarmStore {
      * 今天还能不能贪睡。
      *
      * v1.13.0：额度从「一天一次」改为「一天两次，跨所有闹钟算」。
-     * 用完之后第三次响铃直接进强制播报（[isForcedBroadcast]），不再给贪睡按钮。
+     * 用完之后第二次响铃直接进强制播报（[isForcedBroadcast]），不再给贪睡按钮。
      * 按单个闹钟算的话，想赖床的人多设几个闹钟就把限制绕过去了。
      */
     fun canSnooze(c: Context): Boolean = snoozeCount(c) < MAX_SNOOZE
@@ -304,7 +304,7 @@ object AlarmStore {
         prefs(c).edit().putString(KEY_SNOOZE_DAY, today()).putInt(KEY_SNOOZE_COUNT, n).apply()
     }
 
-    /** 两次贪睡都用完了：下一次响铃就是强制播报，不给任何关闭入口 */
+    /** 一次贪睡用完了：下一次响铃就是强制播报，不给任何关闭入口 */
     fun isForcedBroadcast(c: Context): Boolean = snoozeCount(c) >= MAX_SNOOZE
 
     /** 打卡完成 / 主动放弃 / 换新的一天：清空贪睡额度 */

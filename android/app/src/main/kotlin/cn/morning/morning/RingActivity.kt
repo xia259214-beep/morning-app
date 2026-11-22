@@ -57,7 +57,7 @@ class RingActivity : Activity() {
     private var reassertCount = 0
 
     // ---------------------------------------------------------------- 强制播报
-    /** 第三次响铃（两次贪睡用完）走这里：念新闻，不给贪睡，只能拍照解除 */
+    /** 第二次响铃（贪睡额度用完）走这里：念新闻，不给贪睡，只能拍照解除 */
     private var broadcastMode = false
     private var tts: TextToSpeech? = null
     private var newsLines: List<String> = emptyList()
@@ -107,7 +107,7 @@ class RingActivity : Activity() {
 
         startRinging()
 
-        // v1.13.0：两次贪睡都用完 → 第三次响铃直接进强制播报。
+        // v1.13.5：贪睡额度用完 → 第二次响铃直接进强制播报。
         // 判断放在页面里而不是 Intent 里，是为了让「从通知点进来 / 系统 FSI 拉起」
         // 这两条路径都自动得到同一个结论——参数少一个，漏传的机会就少一个。
         if (AlarmStore.isForcedBroadcast(this)) enterBroadcastMode()
@@ -227,10 +227,11 @@ class RingActivity : Activity() {
     }
 
     /**
-     * 贪睡按钮：一天两次机会（v1.13.0 由一次改为两次，对应「再睡五分钟」的常理）。
+     * 贪睡按钮：一天一次机会（v1.13.5 收紧为一次——第一次响可以再睡 5 分钟，
+     * 第二次响就直接进播报，见 [enterBroadcastMode]）。
      *
-     * 用完额度后第三次响铃不会走到这里——[enterBroadcastMode] 已经把按钮藏掉了。
-     * 这里保留禁用分支，只防一种情况：用户在第二次响铃的页面上停留很久，
+     * 用完额度后第二次响铃不会走到这里——[enterBroadcastMode] 已经把按钮藏掉了。
+     * 这里保留禁用分支，只防一种情况：用户在响铃页面上停留很久，
      * 期间另一个闹钟把额度用掉了，此时按钮必须立刻变成不可点，而不是点了没反应。
      */
     private fun applySnoozeButton() {
@@ -239,7 +240,10 @@ class RingActivity : Activity() {
         if (left > 0) {
             b.isEnabled = true
             b.alpha = 1f
-            b.text = "贪睡 $snoozeMinutes 分钟（今天还剩 $left 次）"
+            b.text = if (AlarmStore.MAX_SNOOZE > 1)
+                "贪睡 $snoozeMinutes 分钟（今天还剩 $left 次）"
+            else
+                "贪睡 $snoozeMinutes 分钟（再睡就没机会了）"
             b.setOnClickListener { snooze() }
         } else {
             b.isEnabled = false
@@ -364,7 +368,7 @@ class RingActivity : Activity() {
 
     // ================================================================ 强制播报
     /**
-     * 第三次响铃（两次贪睡用完）：铃声换成当天新闻播报。
+     * 第二次响铃（贪睡额度用完）：铃声换成当天新闻播报。
      *
      * 规则：播报开始后不能关、不能退、不能贪睡，只有拍了门外照片才结束。
      * 本页只负责「关铃声 + 起 TTS + 藏入口」；真正的解除在 Flutter 打卡成功后
