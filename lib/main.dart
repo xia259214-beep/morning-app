@@ -175,13 +175,16 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       Store.set('flowPending', '');
       return;
     }
-    _pushFlow(alarmId: 0, locked: true);
+    // v1.13.2：恢复时带上上次走到哪一步。以前只推 locked 流程、步骤归零，
+    // 强制播报点「我已出门」后按 Home 再回来，流程从唤醒重走——
+    // 要答满 8 题才见得到打卡页，拍照按钮"不弹出"就是这个原因。
+    _pushFlow(alarmId: 0, locked: true, resumeStep: Store.i('flowPendingStep', 0));
   }
 
   /// 轮询和 resume 可能同时命中，这里挡一下，避免叠出两层流程页
   bool _pushing = false;
 
-  Future<void> _pushFlow({required int alarmId, required bool locked}) async {
+  Future<void> _pushFlow({required int alarmId, required bool locked, int resumeStep = 0}) async {
     if (_pushing) return;
     _pushing = true;
     try {
@@ -191,12 +194,14 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       // 流程直接从打卡开始。读完立刻清掉，否则下次正常流程也会跳到打卡。
       // 注意必须走 Bridge 实时读：Store.settings 是启动时载入的内存副本，
       // 原生侧刚写进去的值在这里是看不到的（真机实测踩过）。
-      var startStep = 0;
-      if (locked) {
+      var startStep = resumeStep;
+      if (locked && startStep == 0) {
         final raw = await Bridge.getPref('flowStartStep');
         startStep = (int.tryParse(raw ?? '') ?? 0).clamp(0, 3);
         if (startStep != 0) await Bridge.setPref('flowStartStep', '0');
       }
+      // 步骤随 flowPending 一起持久化：流程没收尾之前，恢复几条路都回到同一步
+      if (locked) Store.set('flowPendingStep', startStep.toString());
       await Navigator.of(context).push(MaterialPageRoute(
         builder: (_) =>
             MorningFlowPage(alarmId: alarmId, locked: locked, startStep: startStep),

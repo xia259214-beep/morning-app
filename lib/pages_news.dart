@@ -8,6 +8,7 @@ import 'core.dart';
 import 'glass.dart';
 import 'journal.dart';
 import 'local_feed.dart';
+import 'morning_news.dart';
 import 'news_engine.dart';
 import 'news_slot.dart';
 import 'region.dart';
@@ -135,6 +136,9 @@ class _NewsPageState extends State<NewsPage> {
         _allLimit = 20;
       }
     });
+    // v1.13.2：抓到新新闻就刷新播报文本。不刷新的话，明早强制播报
+    // 念的还是上一次晨间流程留下的旧文本。
+    if (r.items.isNotEmpty) MorningNews.refreshSpeech(Profile.load());
     if (!silent && r.error.isNotEmpty) _toast(r.error);
   }
 

@@ -16,6 +16,8 @@
 //     下午播报的新闻换了一批。
 // ============================================================================
 
+import 'dart:convert';
+
 import 'bank.dart' show todayNews;
 import 'core.dart' show NewsItem, Store, two;
 import 'news_engine.dart' show Headline, NewsEngine;
@@ -26,19 +28,31 @@ class MorningNews {
   /// 当天选中的真实新闻标题缓存键（与 bank.dart 的 news.* 键区分开）。
   static String _key(DateTime d) => 'morning.realnews.${d.year}-${two(d.month)}-${two(d.day)}';
 
+  /// 最近一次真实新闻的持久化键。
+  ///
+  /// 用户的原话：「今天没有更新，可以播之前的，直接播新闻就可以，不需要一定要更新的。」
+  /// 真实新闻哪怕过期，也比内置示例强——示例一看就是编的，早上听着出戏。
+  static const _lastKey = 'morning.lastreal';
+
   /// 取晨间流程要播报的 3 条。
   ///
   /// 规则：
   ///   1. 一天之内固定：当天选过就记住标题，避免画像漂移导致换新闻；
   ///   2. 有真实缓存且当天缓存命中 → 用真实新闻；
   ///   3. 有真实缓存但当天没选过 → 按新闻页同一算法选前 3 条并记住；
-  ///   4. 完全没有真实缓存（断网 / 从没刷新过）→ 回落到内置示例。
+  ///      就算全部超出 36 小时新鲜度也照选（rank 内部会把旧条目排到后面，不是丢弃）；
+  ///   4. 完全没有真实缓存（断网 / 从没刷新过）→ 先翻最近一次真实新闻，
+  ///      连它都没有才回落内置示例。
   static List<NewsItem> pick(Profile profile, {int count = 3, DateTime? at}) {
     final now = at ?? DateTime.now();
     final heads = NewsEngine.cached();
 
-    // 没有真实数据：保持 v1.9.0 及以前的离线行为，不让流程开天窗。
-    if (heads.isEmpty) return todayNews(profile, at: now);
+    // 没有真实数据：先翻「最近一次真实新闻」，宁旧勿假。
+    if (heads.isEmpty) {
+      final last = _fromLast(count);
+      if (last.isNotEmpty) return last;
+      return todayNews(profile, at: now);
+    }
 
     // 当天固定：若记住的标题还能在缓存里全部找到，就按记住的顺序返回。
     final saved = Store.s(_key(now), '');
@@ -53,10 +67,64 @@ class MorningNews {
     final src = fresh.length >= 6 ? fresh : ranked;
     final chosen = NewsEngine.interleave(src).take(count).toList();
 
-    // 记住标题，当天不再变。
+    // 记住标题，当天不再变；同时持久化最近真实新闻 + 刷新播报文本。
     Store.set(_key(now), chosen.map((h) => h.title).join('\u0001'));
+    _rememberLast(chosen);
+    _writeSpeech(chosen);
     return [for (final h in chosen) _toItem(h)];
   }
+
+  /// 把挑好的真实新闻落盘：缓存被清 / 断网时晨间播报还能念这批。
+  static void _rememberLast(List<Headline> chosen) {
+    try {
+      Store.set(
+        _lastKey,
+        jsonEncode([
+          for (final h in chosen.take(6))
+            {'t': h.title, 'b': h.summary, 's': h.source, 'c': h.channel}
+        ]),
+      );
+    } catch (_) {}
+  }
+
+  /// 从「最近一次真实新闻」还原；不足 [count] 条或损坏时返回空。
+  static List<NewsItem> _fromLast(int count) {
+    final raw = Store.s(_lastKey, '');
+    if (raw.isEmpty) return const [];
+    try {
+      final list = jsonDecode(raw);
+      if (list is! List || list.isEmpty) return const [];
+      final out = <NewsItem>[];
+      for (final e in list) {
+        if (e is! Map) continue;
+        final m = Map<String, dynamic>.from(e);
+        final title = (m['t'] ?? '').toString();
+        final body = (m['b'] ?? '').toString();
+        if (title.isEmpty) continue;
+        // 摘要同样截到 90 字，和 _toItem 一致
+        final text = body.length > 90 ? '${body.substring(0, 90)}…' : body;
+        out.add(NewsItem(title, text, (m['s'] ?? '').toString(), (m['c'] ?? '').toString(), ''));
+        if (out.length >= count) break;
+      }
+      return out;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// 把播报文本写进 prefs。原生响铃页强制播报念的就是它，
+  /// 锁屏冷启动时 Flutter 引擎还没起来，文本必须提前躺在那里。
+  static void _writeSpeech(List<Headline> chosen) {
+    Store.set(
+      'newsSpeech',
+      chosen.take(6).map((h) => '${h.title}。${h.summary}').join('\n'),
+    );
+  }
+
+  /// 新闻页刷新成功后调用：让播报文本跟上最新缓存。
+  /// 以前只有走过晨间流程才会写 newsSpeech——如果用户一直没走流程，
+  /// 明早锁屏冷启动时原生念的还是上一次流程留下的旧文本。
+  static void refreshSpeech(Profile profile) => pick(profile);
 
   /// 按记住的标题从当前缓存里还原，保持顺序；缺一条就返回空让调用方重选。
   static List<NewsItem> _byTitles(List<Headline> heads, List<String> titles) {

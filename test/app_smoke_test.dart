@@ -195,34 +195,15 @@ void main() {
   testWidgets('晨间流程可以从唤醒走到完成', (tester) async {
     await boot(tester);
     await _openMorningFromHome(tester);
-    expect(find.text('我已醒来，开始晨间'), findsOneWidget);
+    expect(find.text('我已醒来，去门口拍照'), findsOneWidget);
 
-    await tester.tap(find.text('我已醒来，开始晨间'));
+    await tester.tap(find.text('我已醒来，去门口拍照'));
     await tester.pumpAndSettle();
 
-    // 逐题作答。v1.7.0 起有单选、多选、判断三种题型：
-    // 单选和判断点一下即判；多选要勾完再确认。统一点第一个选项最稳。
-    final qn = Store.i('quizCount', 10);
-    for (var i = 0; i < qn; i++) {
-      expect(find.textContaining('第 ${i + 1} /'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('opt0')));
-      await tester.pumpAndSettle();
-
-      final confirm = find.text('确认选择');
-      if (confirm.evaluate().isNotEmpty) {
-        await tester.tap(confirm);
-        await tester.pumpAndSettle();
-      }
-
-      await tester.tap(find.textContaining(i == qn - 1 ? '进入新闻播报' : '下一题'));
-      await tester.pumpAndSettle();
-    }
-
-    expect(find.text('跳过播报'), findsOneWidget);
-    await tester.tap(find.text('跳过播报'));
-    await tester.pumpAndSettle();
-
+    // v1.13.3：醒了的唯一下一步就是打卡——不再经过答题/播报。
+    // 点完「我已醒来」相机应自动弹出（mock 返回 null → 页面提示未获取到照片）。
     expect(find.text('出门打卡'), findsOneWidget);
+    expect(find.text('拍照'), findsOneWidget);
 
     // v1.5.0：不再有「相机不可用，先跳过」这种一键跳过。
     // 唯一的出口要按住 3 秒，代价是今天记为未打卡（连续天数归零）。
@@ -267,14 +248,14 @@ void main() {
     ));
     await tester.tap(find.text('进来'));
     await tester.pumpAndSettle();
-    expect(find.text('我已醒来，开始晨间'), findsOneWidget);
+    expect(find.text('我已醒来，去门口拍照'), findsOneWidget);
 
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
 
     // 还在流程里。这条断言就是 v1.5.0 的核心：
     // 以前按一下返回 / 划一下手势就回桌面了，闹钟等于被关掉。
-    expect(find.text('我已醒来，开始晨间'), findsOneWidget);
+    expect(find.text('我已醒来，去门口拍照'), findsOneWidget);
     expect(find.text('进来'), findsNothing);
 
     await tester.pumpWidget(const SizedBox());
@@ -283,14 +264,14 @@ void main() {
   testWidgets('手动打开的流程可以随时退出，不会把人困住', (tester) async {
     await boot(tester);
     await _openMorningFromHome(tester);
-    expect(find.text('我已醒来，开始晨间'), findsOneWidget);
+    expect(find.text('我已醒来，去门口拍照'), findsOneWidget);
 
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
 
     // v1.9.0：回到底部导航（首页）——手动探索流程不该被锁
     expect(find.byIcon(Icons.wb_twilight), findsOneWidget);
-    expect(find.text('我已醒来，开始晨间'), findsNothing);
+    expect(find.text('我已醒来，去门口拍照'), findsNothing);
 
     await tester.pumpWidget(const SizedBox());
   });

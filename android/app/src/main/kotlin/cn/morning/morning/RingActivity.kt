@@ -440,7 +440,11 @@ class RingActivity : Activity() {
         }
     }
 
-    /** 播一遍；播完接着播下一遍，直到用户拍照。不依赖引擎回调，按字数估时长重排。 */
+    /**
+     * 播一遍就停。用户的原话：「新闻直接播就可以，不需要一直播」——
+     * 反复循环念等于噪音；念完后页面还在，规则不变：拍一张门外照片才结束。
+     * 想重听就锁屏再亮屏一次（保活链条会重新拉起页面续播）。
+     */
     private fun speakAll() {
         val t = tts ?: return
         if (!broadcastMode || isFinishing) return
@@ -456,9 +460,14 @@ class RingActivity : Activity() {
                 // 单条失败不影响后续
             }
         }
-        // 中文约每秒 4.5 字，留 3 秒间隔，别让两条新闻粘在一起
+        // 中文约每秒 4.5 字 + 3 秒间隔。到点只换提示语，不再重播。
         val est = (newsLines.sumOf { it.length } * 220L + 3_000L).coerceAtLeast(20_000L)
-        handler.postDelayed({ speakAll() }, est)
+        handler.postDelayed({
+            if (broadcastMode && !isFinishing) {
+                findViewById<TextView>(R.id.hintText).text =
+                    "播报结束 · 拍一张门外照片结束今天的闹钟"
+            }
+        }, est)
     }
 
     private fun openCheckin() {
@@ -467,8 +476,25 @@ class RingActivity : Activity() {
         // 启动事件要写：Flutter 侧靠 consumeLaunchEvent 决定要不要拉起流程页。
         // 正常路径在「起床」按钮里写（goMorning），播报路径只有这里。
         AlarmStore.pushEvent(this, alarmId)
-        // 停掉抢焦点与保活：打卡页要能正常用。播报声音继续，
-        // 打卡成功（或放弃）时 Flutter 调 stopRing 统一收尾
+        // v1.13.3：点了「我已出门」就立刻停播报——用户的原话是
+        // 「点醒了就不会再播报」。念完这轮新闻再停反而像失控。
+        broadcastMode = false
+        broadcastActive = false
+        stopBroadcast()
+        // 保活标记也要一并清：不清的话，下一次保活闹钟触发时
+        // onBroadcastKeep 看到 stillOn=true，会把本页再拽到前台，
+        // 盖住正要拍照的打卡页（真机实测踩过）。
+        try {
+            AlarmStore.prefs(this).edit().putString("broadcast_active", "0").apply()
+        } catch (e: Exception) {
+            // 忽略
+        }
+        try {
+            findViewById<TextView>(R.id.hintText).text = "拍完门外照片，今天的闹钟就结束"
+        } catch (e: Exception) {
+            // 忽略
+        }
+        // 停掉抢焦点与保活：打卡页要能正常用
         handoff = true
         AlarmStore.cancelBroadcastKeep(this)
         val i = Intent(this, MainActivity::class.java).apply {
@@ -480,7 +506,7 @@ class RingActivity : Activity() {
         } catch (e: Exception) {
             // 后台启动受限时用户仍可从通知点回来
         }
-        // 故意不 finish：播报继续念，直到打卡成功回调 finishFromCheckin
+        // 故意不 finish：页面留着兜底，打卡成功时 Flutter 调 stopRing 统一关页
     }
 
     /** Flutter 打卡成功后调用：停播报、撤通知、关页 */

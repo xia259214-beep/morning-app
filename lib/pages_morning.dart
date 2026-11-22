@@ -240,7 +240,20 @@ class _MorningFlowPageState extends State<MorningFlowPage> {
     _record.wokeAt = DateTime.now().millisecondsSinceEpoch;
     // 强制播报点「我已出门」进来的那一次：直接到打卡
     _step = widget.startStep.clamp(0, 3);
+    if (_step == 3) {
+      // 相机不用等人点：播报页点「我已出门」就是为了拍照，
+      // 界面落到打卡页的同时把相机弹出来。
+      WidgetsBinding.instance.addPostFrameCallback((_) => _autoShoot());
+    }
     _probeTts();
+  }
+
+  /// 自动弹相机。等一帧再等 700ms：路由转场还在跑的时候直接拉起相机
+  /// 会被盖住，观感像「点了没反应」。
+  Future<void> _autoShoot() async {
+    await Future.delayed(const Duration(milliseconds: 700));
+    if (!mounted || _step != 3 || _photo.isNotEmpty) return;
+    _takePhoto();
   }
 
   /// 换到别的设备上，可能根本没有语音引擎或没装中文语音包。
@@ -578,6 +591,8 @@ class _MorningFlowPageState extends State<MorningFlowPage> {
     await Bridge.stopRing();
     // 也没有「欠着的流程」了，回 App 时不该再被塞回这里
     Store.set('flowPending', '');
+    // 连同步骤一起清：今天再走一次新流程必须从唤醒开始，不能继承上次的打卡步
+    Store.set('flowPendingStep', '0');
   }
 
   /// 进入「完成」页：必须先把记录写进去再切页。
@@ -758,14 +773,18 @@ class _MorningFlowPageState extends State<MorningFlowPage> {
                 // 整条流水账的第一笔：几点醒的，是靠闹钟还是自己起来的
                 Journal.add(JKind.wake, '醒来，开始晨间',
                     detail: widget.alarmId > 0 ? '闹钟响后开始' : '手动开始');
-                setState(() => _step = 1);
+                // v1.13.3：醒了就直接到打卡，相机界面立刻弹出来——
+                // 用户的原话：「点醒了，就是要弹那个摄像窗口，摄像界面」。
+                // 答题和播报不再卡在中间；想答题、听新闻去对应的独立页面。
+                setState(() => _step = 3);
+                _autoShoot();
               },
-              child: const Text('我已醒来，开始晨间'),
+              child: const Text('我已醒来，去门口拍照'),
             ),
           ),
           const SizedBox(height: 14),
           Text(
-            '建议先起身、拉开窗帘，再完成接下来的三步',
+            '出门时对着门口 / 电梯 / 路边拍一张，今天的晨间就算完成',
             style: TextStyle(fontSize: 11.5, color: AppColor.sub),
           ),
         ],
