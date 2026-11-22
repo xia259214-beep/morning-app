@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'core.dart';
 import 'focus.dart';
+import 'glass.dart';
 import 'journal.dart';
 import 'pages_more.dart';
 import 'pages_quiz.dart';
@@ -215,6 +216,17 @@ class _HomePageState extends State<HomePage> {
 
           const SizedBox(height: 14),
 
+          // 小数据（v1.13.6：抬到「今日晨间」上面那一排）
+          Row(
+            children: [
+              Expanded(child: _stat('连续打卡', '${Store.streak}', '天')),
+              const SizedBox(width: 12),
+              Expanded(child: _stat('本月完成', '${_monthCount()}', '次')),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
           // 今日晨间
           _Panel(
             child: Column(
@@ -234,11 +246,7 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
                 const SizedBox(height: 14),
-                _stepRow('晨间答题', day.quizTotal > 0,
-                    // 「0/3」紧挨着右边的「已完成」，会被读成「三步里完成了 0 步」。
-                    // 这里只报知识题答对几道，避免与步骤进度混淆。
-                    day.quizTotal == 0 ? '' : '对 ${day.quizCorrect} 道'),
-                const SizedBox(height: 10),
+                // v1.13.6：晨间流程已去掉答题，今日晨间只留「新闻播报 / 出门打卡」。
                 _stepRow('新闻播报', day.news > 0, ''),
                 const SizedBox(height: 10),
                 _stepRow('出门打卡', day.checkedIn, ''),
@@ -258,17 +266,6 @@ class _HomePageState extends State<HomePage> {
                 ),
               ],
             ),
-          ),
-
-          const SizedBox(height: 14),
-
-          // 小数据
-          Row(
-            children: [
-              Expanded(child: _stat('连续打卡', '${Store.streak}', '天')),
-              const SizedBox(width: 12),
-              Expanded(child: _stat('本月完成', '${_monthCount()}', '次')),
-            ],
           ),
 
           const SizedBox(height: 14),
@@ -520,10 +517,11 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-/// 统一的卡片容器（白底、细线、温和圆角）
+/// 统一卡片容器（v1.13.6：从「半透明色块 + 细线」升级成真正的玻璃卡——
+/// 背景真模糊 + 斜向渐变 + 高光描边 + 顶部一道反光，边缘轮廓更明确）
 class _Panel extends StatelessWidget {
   final Widget child;
-  final EdgeInsets padding;
+  final EdgeInsetsGeometry padding;
 
   const _Panel({
     required this.child,
@@ -532,13 +530,10 @@ class _Panel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GlassCard(
       padding: padding,
-      decoration: BoxDecoration(
-        color: AppColor.glassCard,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColor.glassEdge),
-      ),
+      margin: EdgeInsets.zero,
+      radius: 20,
       child: child,
     );
   }

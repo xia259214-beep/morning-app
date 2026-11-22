@@ -123,6 +123,9 @@ void main() {
 
     expect(find.text('下一个闹钟'), findsOneWidget);
     expect(find.text('今日晨间'), findsOneWidget);
+    // v1.13.6：晨间流程已去掉答题，只留新闻播报 / 出门打卡两步
+    expect(find.text('晨间答题'), findsNothing);
+    expect(find.text('新闻播报'), findsOneWidget);
     // v1.9.0：底部去掉「晨间」独立 tab，首页仍留手动流程入口
     expect(find.byIcon(Icons.self_improvement), findsNothing);
     expect(find.byIcon(Icons.wb_twilight), findsOneWidget);
