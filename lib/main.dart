@@ -15,6 +15,7 @@ import 'pages_more.dart';
 import 'pages_morning.dart';
 import 'pages_news.dart';
 import 'pages_setup.dart';
+import 'pages_update.dart';
 
 Future<void> main() async {
   // v1.11.0：全局崩溃捕获先装上，后面任何初始化炸了都能留痕。
@@ -102,6 +103,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       _maybeSetup();
       // v1.9.0：把上次选的播报语速推给原生，双保险（原生自己也读了一份）
       Bridge.setSpeechRate(savedRate());
+      _scheduleUpdateCheck();
     });
     // 停在前台不切页时靠它兜住：App 一直开着、流程没走完，也会被推回去。
     // 20 秒一次，开销可以忽略；_resumePendingFlow 自己是幂等的。
@@ -111,6 +113,25 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   }
 
   Timer? _flowWatch;
+  Timer? _updateWatch;
+
+  /// v1.16.0：开屏后静默问一句「有没有新版」。
+  ///
+  /// 延迟 3 秒，把启动那几百毫秒先留给闹钟与流程判断；这期间要是已经被
+  /// 闹钟叫进流程页，或者首次引导还没走完，就不打扰了。
+  /// 检查本身受 12 小时节流约束，失败也闭嘴，不会连着弹。
+  ///
+  /// 用可取消的 Timer 而不是 `Future.delayed`：页面提前销毁时（widget 测试
+  /// 尤其明显）定时器还挂着会被判成「泄漏」。
+  void _scheduleUpdateCheck() {
+    _updateWatch?.cancel();
+    _updateWatch = Timer(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      if (!Store.b('setupDone', false)) return;
+      if (MorningFlowPage.isOpen) return;
+      checkUpdateOnLaunch(context);
+    });
+  }
 
   /// 首次启动先把「能叫醒人」的四项权限过一遍；跳过过的用户不再打扰
   Future<void> _maybeSetup() async {
@@ -125,6 +146,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   @override
   void dispose() {
     _flowWatch?.cancel();
+    _updateWatch?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

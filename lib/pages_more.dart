@@ -11,6 +11,7 @@ import 'pages_glass.dart';
 import 'pages_portable.dart';
 import 'pages_quiz.dart';
 import 'pages_rank.dart';
+import 'pages_update.dart';
 import 'region.dart';
 import 'profile.dart';
 import 'score.dart';
@@ -1117,7 +1118,11 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           const SizedBox(height: 18),
           _section('关于'),
-          _rowTile('版本', _version.isEmpty ? '读取中…' : _version),
+          _rowTile(
+            '版本',
+            _version.isEmpty ? '读取中…' : '$_version · 检查更新',
+            onTap: () => checkUpdateManually(context),
+          ),
           _rowTile('存储位置', '仅本机，可导出备份'),
           const SizedBox(height: 18),
           Container(
