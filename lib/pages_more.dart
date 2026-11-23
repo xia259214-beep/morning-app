@@ -8,10 +8,12 @@ import 'journal.dart';
 import 'outdoor.dart';
 import 'qbank.dart';
 import 'pages_glass.dart';
+import 'pages_portable.dart';
 import 'pages_quiz.dart';
 import 'pages_rank.dart';
 import 'region.dart';
 import 'profile.dart';
+import 'score.dart';
 
 // ============================================================================
 // 记录页
@@ -646,6 +648,65 @@ class _ProfileCard extends StatelessWidget {
                   style: TextStyle(fontSize: 11, color: AppColor.sub)),
             ],
           ),
+          const SizedBox(height: 12),
+          // v1.15.0：总分就摆在这里。
+          // 画像回答「我是谁」，分数回答「我答出来多少」——两张账并排放，
+          // 用户一眼就能对上：偏哪块、在那一块答得怎么样。
+          Builder(builder: (context) {
+            final s = ScoreBook.instance;
+            return Container(
+              padding: const EdgeInsets.fromLTRB(14, 11, 14, 11),
+              decoration: BoxDecoration(
+                color: AppColor.accentSoft,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('总分',
+                          style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
+                      const SizedBox(height: 1),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text('${s.total}',
+                              style: const TextStyle(
+                                  fontSize: 30,
+                                  height: 1.05,
+                                  fontWeight: FontWeight.w300)),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 3, bottom: 4),
+                            child: Text('分',
+                                style: TextStyle(
+                                    fontSize: 10.5, color: AppColor.sub)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text('答对 ${s.right} · 答错 ${s.wrong}',
+                          style: const TextStyle(fontSize: 11.5)),
+                      const SizedBox(height: 3),
+                      Text('正确率 ${s.accuracy}% · 跳过 ${s.skipped}',
+                          style:
+                              TextStyle(fontSize: 10, color: AppColor.sub)),
+                      const SizedBox(height: 2),
+                      Text('答对 +1 · 答错 −1',
+                          style:
+                              TextStyle(fontSize: 10, color: AppColor.sub)),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }),
           const SizedBox(height: 8),
           Text(p.describe(),
               style: TextStyle(
@@ -903,23 +964,42 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: Icon(Icons.wb_twilight, color: AppColor.accent, size: 22),
                 ),
                 const SizedBox(width: 14),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('晨友', style: TextStyle(fontSize: 16)),
-                    const SizedBox(height: 4),
-                    Text(
-                      _model.isEmpty ? '读设备信息…' : _model,
-                      style: TextStyle(fontSize: 11, color: AppColor.sub),
-                    ),
-                  ],
+                // v1.15.0：多了一个「总分」，中间这段必须能收窄。
+                // 不套 Expanded 的话，长机型名（「Xiaomi 24018RPACC · Android 16」）
+                // 会把右边两个数字挤出屏幕——真机上不报错，只是看不见。
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('晨友', style: TextStyle(fontSize: 16)),
+                      const SizedBox(height: 4),
+                      Text(
+                        _model.isEmpty ? '读设备信息…' : _model,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11, color: AppColor.sub),
+                      ),
+                    ],
+                  ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 10),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text('${Store.streak}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w300)),
                     Text('连续天数', style: TextStyle(fontSize: 10, color: AppColor.sub)),
+                  ],
+                ),
+                const SizedBox(width: 14),
+                // v1.15.0：总分。同一个位置放两个数，是因为它们都是
+                // 「我坚持了多久」的证据——一个是天数，一个是答出来的分。
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('${ScoreBook.instance.total}',
+                        style: const TextStyle(
+                            fontSize: 22, fontWeight: FontWeight.w300)),
+                    Text('总分', style: TextStyle(fontSize: 10, color: AppColor.sub)),
                   ],
                 ),
               ],
@@ -959,6 +1039,11 @@ class _ProfilePageState extends State<ProfilePage> {
               );
               if (mounted) setState(() {});
             },
+          ),
+          _rowTile(
+            '总分',
+            '${ScoreBook.instance.total} 分 · 对 ${ScoreBook.instance.right} / 错 ${ScoreBook.instance.wrong}',
+            onTap: _scoreSheet,
           ),
           _rowTile(
             '默认贪睡时长',
@@ -1017,9 +1102,23 @@ class _ProfilePageState extends State<ProfilePage> {
             );
           }),
           const SizedBox(height: 18),
+          _section('数据'),
+          // v1.15.0：换手机的唯一出口。放在「可靠性」和「关于」之间——
+          // 它既不是每天用的功能，也不该藏在关于页里让人找不到。
+          _rowTile(
+            '数据备份 / 换手机',
+            '导出 JSON · 导入可合并或覆盖',
+            onTap: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const DataPortPage()),
+              );
+              if (mounted) setState(() {});
+            },
+          ),
+          const SizedBox(height: 18),
           _section('关于'),
           _rowTile('版本', _version.isEmpty ? '读取中…' : _version),
-          _rowTile('存储位置', '仅本机，不上传'),
+          _rowTile('存储位置', '仅本机，可导出备份'),
           const SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.all(16),
@@ -1039,6 +1138,85 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
+
+  /// 分数的说明弹层。规则必须一句话讲得清，否则用户只会觉得「分怎么少了」。
+  void _scoreSheet() {
+    final s = ScoreBook.instance;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColor.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 22, 24, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('${s.total}',
+                      style: const TextStyle(
+                          fontSize: 34, height: 1.1, fontWeight: FontWeight.w300)),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 4),
+                    child: Text('分',
+                        style: TextStyle(fontSize: 12, color: AppColor.sub)),
+                  ),
+                  const Spacer(),
+                  Text('已答 ${s.answered} 题',
+                      style: TextStyle(fontSize: 11, color: AppColor.sub)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _scoreLine('答对一题', '+1', '完全选对才加分'),
+              _scoreLine('答错一题', '−1', '多选没选全也算答错'),
+              _scoreLine('跳过一题', '0', '跳过是「这块先不问」，不罚分'),
+              _scoreLine('偏好题', '0', '没有标准答案，只算接触过'),
+              const SizedBox(height: 8),
+              Text(
+                '答对 ${s.right} · 答错 ${s.wrong} · 跳过 ${s.skipped} · '
+                '正确率 ${s.accuracy}%（只算有对错的题）',
+                style: TextStyle(fontSize: 11, height: 1.6, color: AppColor.sub),
+              ),
+              const SizedBox(height: 6),
+              Text('分数可以是负的——答得比错得少，账就该是负的，不替你抹平。',
+                  style: TextStyle(fontSize: 10.5, height: 1.6, color: AppColor.sub)),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('知道了')),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _scoreLine(String label, String value, String note) => Padding(
+        padding: const EdgeInsets.only(bottom: 9),
+        child: Row(
+          children: [
+            SizedBox(
+                width: 74,
+                child: Text(label, style: const TextStyle(fontSize: 12.5))),
+            SizedBox(
+                width: 34,
+                child: Text(value,
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w500))),
+            Expanded(
+                child: Text(note,
+                    style: TextStyle(fontSize: 10.5, color: AppColor.sub))),
+          ],
+        ),
+      );
 
   Future<String?> _choose(String title, List<String> options) {
     return showModalBottomSheet<String>(

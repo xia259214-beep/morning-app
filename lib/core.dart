@@ -507,6 +507,43 @@ class Bridge {
   static Future<String> readCrashLog() async =>
       (await _call<String>('readCrashLog')) ?? '';
   static Future<void> clearCrashLog() => _call('clearCrashLog');
+
+  // v1.15.0 数据搬家。
+  //
+  // 走系统的文件选择器（SAF）：它的列表里本来就有网盘和「下载」目录，
+  // 所以「存到手机」和「存到云端」对用户是同一件事，App 不用接任何云服务，
+  // 也不用向任何人证明自己拿到了存储权限。
+  //
+  // 返回 {ok:true, name}；用户取消是 {ok:false, reason:'cancel'}，
+  // 不是异常——取消是正常操作，不该弹错误。
+  static Future<Map<String, dynamic>> exportData(String json, String name) async {
+    final r = await _call<Map>('exportData', {'json': json, 'name': name});
+    return r == null
+        ? <String, dynamic>{'ok': false, 'reason': 'unavailable'}
+        : Map<String, dynamic>.from(r);
+  }
+
+  static Future<Map<String, dynamic>> importData() async {
+    final r = await _call<Map>('importData');
+    return r == null
+        ? <String, dynamic>{'ok': false, 'reason': 'unavailable'}
+        : Map<String, dynamic>.from(r);
+  }
+
+  /// 分享/发送到别的 App（微信、网盘、邮件…）：第二条「送到云端」的路
+  static Future<Map<String, dynamic>> shareData(String json, String name) async {
+    final r = await _call<Map>('shareData', {'json': json, 'name': name});
+    return r == null
+        ? <String, dynamic>{'ok': false, 'reason': 'unavailable'}
+        : Map<String, dynamic>.from(r);
+  }
+
+  /// 应用私有目录里的一份文件（导入前的自动备份）
+  static Future<bool> saveLocal(String name, String json) async =>
+      (await _call<bool>('saveLocal', {'name': name, 'json': json})) ?? false;
+
+  static Future<String?> readLocal(String name) =>
+      _call<String>('readLocal', {'name': name});
 }
 
 // ============================================================================

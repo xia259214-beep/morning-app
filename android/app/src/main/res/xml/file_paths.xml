@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <files-path name="photos" path="photos/" />
+    <!-- v1.15.0：导出备份时可以「发送到…」，分享用的临时文件放在 cache/share/ 下 -->
+    <cache-path name="share" path="share/" />
 </paths>

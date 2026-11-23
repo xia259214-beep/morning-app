@@ -36,6 +36,12 @@ class MainActivity : FlutterActivity() {
     private var pendingPhoto: File? = null
     private var tts: TextToSpeech? = null
 
+    // v1.15.0 数据搬家：系统文件选择器是异步的（用户可能在网盘里翻半天），
+    // 回调结果先挂在这里，onActivityResult 回来再交还给 Dart。
+    private var exportResult: MethodChannel.Result? = null
+    private var exportPayload: String? = null
+    private var importResult: MethodChannel.Result? = null
+
     /// 预生成播报音频的播放器（见 playSample）
     private var samplePlayer: MediaPlayer? = null
     private var samplePlaying = false
@@ -264,6 +270,48 @@ class MainActivity : FlutterActivity() {
                     }
                 }
 
+                // ---------------- v1.15.0 数据搬家 ----------------
+                // 导出：只写用户亲手选的那个文件，不扫目录、不留缓存副本。
+                "exportData" -> exportData(
+                    call.argument<String>("json") ?: "",
+                    call.argument<String>("name") ?: "morning-backup.json",
+                    result
+                )
+
+                // 导入：只读用户亲手选的那一份，不认识类型就当场拒绝。
+                "importData" -> importData(result)
+
+                // 分享到微信/网盘/邮件：另一条「送到云端」的路，同样不经过我们的服务器
+                "shareData" -> shareData(
+                    call.argument<String>("json") ?: "",
+                    call.argument<String>("name") ?: "morning-backup.json",
+                    result
+                )
+
+                // 导入前的自动备份（私有目录，用户看不见，但能一键撤销）
+                "saveLocal" -> {
+                    try {
+                        val dir = File(filesDir, "backups").apply { mkdirs() }
+                        File(dir, safeName(call.argument<String>("name") ?: "backup.json"))
+                            .writeText(call.argument<String>("json") ?: "")
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
+                }
+
+                "readLocal" -> {
+                    try {
+                        val f = File(
+                            File(filesDir, "backups"),
+                            safeName(call.argument<String>("name") ?: "")
+                        )
+                        result.success(if (f.exists()) f.readText() else null)
+                    } catch (e: Exception) {
+                        result.success(null)
+                    }
+                }
+
                 else -> result.notImplemented()
             }
         }
@@ -423,7 +471,7 @@ class MainActivity : FlutterActivity() {
             addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         try {
-            startActivityForResult(intent, 1001)
+            startActivityForResult(intent, REQ_CAMERA)
         } catch (e: Exception) {
             cameraResult = null
             result.success(null)
@@ -432,15 +480,159 @@ class MainActivity : FlutterActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != 1001) return
-        val file = pendingPhoto
-        pendingPhoto = null
-        if (resultCode == RESULT_OK && file != null && file.exists() && file.length() > 0) {
-            cameraResult?.success(file.absolutePath)
-        } else {
-            cameraResult?.success(null)
+        when (requestCode) {
+            REQ_CAMERA -> {
+                val file = pendingPhoto
+                pendingPhoto = null
+                if (resultCode == RESULT_OK && file != null && file.exists() && file.length() > 0) {
+                    cameraResult?.success(file.absolutePath)
+                } else {
+                    cameraResult?.success(null)
+                }
+                cameraResult = null
+            }
+            REQ_EXPORT -> finishExport(resultCode, data?.data)
+            REQ_IMPORT -> finishImport(resultCode, data?.data)
         }
-        cameraResult = null
+    }
+
+    // ------------------------------------------------------------ 数据搬家
+    // 全部走 SAF（Storage Access Framework）：
+    //   · 不需要任何存储权限，系统把「选哪个文件」这件事交给用户；
+    //   · 选择器里本来就列着网盘和「下载」，所以「存本地」和「存云端」是同一个动作；
+    //   · App 只碰用户亲手点过的那一个 Uri，拿不到别的目录。
+    private fun exportData(json: String, name: String, result: MethodChannel.Result) {
+        if (json.isEmpty()) {
+            result.success(mapOf("ok" to false, "reason" to "empty"))
+            return
+        }
+        if (exportResult != null) {
+            result.success(mapOf("ok" to false, "reason" to "busy"))
+            return
+        }
+        exportResult = result
+        exportPayload = json
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/json"
+            putExtra(Intent.EXTRA_TITLE, name)
+        }
+        try {
+            startActivityForResult(intent, REQ_EXPORT)
+        } catch (e: Exception) {
+            // 部分精简 ROM 没有文档选择器：如实告诉 Dart，让界面提示改用「发送到…」
+            exportResult = null
+            exportPayload = null
+            result.success(mapOf("ok" to false, "reason" to "no_picker"))
+        }
+    }
+
+    private fun importData(result: MethodChannel.Result) {
+        if (importResult != null) {
+            result.success(mapOf("ok" to false, "reason" to "busy"))
+            return
+        }
+        importResult = result
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            // 有些网盘的 JSON 会被标成 text/plain 甚至 octet-stream，
+            // 所以放开 MIME，真正的校验交给 Dart 的 Portable.parse
+            type = "*/*"
+            putExtra(
+                Intent.EXTRA_MIME_TYPES,
+                arrayOf("application/json", "text/plain", "application/octet-stream")
+            )
+        }
+        try {
+            startActivityForResult(intent, REQ_IMPORT)
+        } catch (e: Exception) {
+            importResult = null
+            result.success(mapOf("ok" to false, "reason" to "no_picker"))
+        }
+    }
+
+    private fun shareData(json: String, name: String, result: MethodChannel.Result) {
+        try {
+            val dir = File(cacheDir, "share").apply { mkdirs() }
+            val file = File(dir, safeName(name))
+            file.writeText(json)
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                this, "$packageName.fileprovider", file
+            )
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "application/json"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, name)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(send, "把备份发到…"))
+            result.success(mapOf("ok" to true))
+        } catch (e: Exception) {
+            result.success(mapOf("ok" to false, "reason" to "share_failed"))
+        }
+    }
+
+    private fun finishExport(resultCode: Int, uri: Uri?) {
+        val res = exportResult ?: return
+        val payload = exportPayload
+        exportResult = null
+        exportPayload = null
+        if (resultCode != RESULT_OK || uri == null || payload == null) {
+            res.success(mapOf("ok" to false, "reason" to "cancel"))
+            return
+        }
+        try {
+            // "wt" = 截断后写。不截断的话，覆盖一个更长的旧文件会留下尾巴，
+            // 那份 JSON 就成了半新半旧的垃圾。
+            contentResolver.openOutputStream(uri, "wt")?.use { out ->
+                out.write(payload.toByteArray(Charsets.UTF_8))
+                out.flush()
+            } ?: throw IllegalStateException("no stream")
+            res.success(mapOf("ok" to true, "name" to displayName(uri)))
+        } catch (e: Exception) {
+            res.success(mapOf("ok" to false, "reason" to "write_failed"))
+        }
+    }
+
+    private fun finishImport(resultCode: Int, uri: Uri?) {
+        val res = importResult ?: return
+        importResult = null
+        if (resultCode != RESULT_OK || uri == null) {
+            res.success(mapOf("ok" to false, "reason" to "cancel"))
+            return
+        }
+        try {
+            // 用 Reader 读，不自己按字节切缓冲：中文在缓冲区边界被切断会变成乱码，
+            // 一份几千条流水的备份足够撞上这个概率。
+            val text = contentResolver.openInputStream(uri)?.use { input ->
+                java.io.BufferedReader(java.io.InputStreamReader(input, Charsets.UTF_8))
+                    .readText()
+            } ?: throw IllegalStateException("no stream")
+            if (text.length > 16 * 1024 * 1024) {
+                res.success(mapOf("ok" to false, "reason" to "too_big"))
+                return
+            }
+            res.success(mapOf("ok" to true, "json" to text, "name" to displayName(uri)))
+        } catch (e: Exception) {
+            res.success(mapOf("ok" to false, "reason" to "read_failed"))
+        }
+    }
+
+    /// 文件名只留最后一段，别让 `../` 之类的写法跑出应用目录
+    private fun safeName(name: String): String {
+        val base = File(name).name
+        return if (base.isEmpty() || base == "." || base == "..") "backup.json" else base
+    }
+
+    private fun displayName(uri: Uri): String {
+        return try {
+            contentResolver.query(uri, null, null, null, null)?.use { c ->
+                val idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (idx >= 0 && c.moveToFirst()) c.getString(idx) else uri.lastPathSegment ?: ""
+            } ?: uri.lastPathSegment ?: ""
+        } catch (e: Exception) {
+            uri.lastPathSegment ?: ""
+        }
     }
 
     // ------------------------------------------------------------ 语音合成
@@ -456,6 +648,11 @@ class MainActivity : FlutterActivity() {
         const val TTS_NO_CHINESE = "no_chinese"
         const val TTS_BIND_FAILED = "bind_failed"
         const val TTS_TIMEOUT = "timeout"
+
+        // startActivityForResult 的请求码（相机 1001 是原有约定，不要改）
+        private const val REQ_CAMERA = 1001
+        private const val REQ_EXPORT = 1002
+        private const val REQ_IMPORT = 1003
     }
 
     private var ttsReady = false

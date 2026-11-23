@@ -15,6 +15,7 @@ import 'journal.dart';
 import 'power.dart';
 import 'profile.dart';
 import 'qbank.dart';
+import 'score.dart';
 import 'topics.dart';
 
 /// 一轮答完的账。跨「再来一轮」累加，供完成页和本次记录使用。
@@ -23,16 +24,24 @@ class QuizTally {
   final int correct;
   final int skipped;
 
+  /// 本轮得分：答对 +1、答错 -1、跳过与偏好题 0（口径见 score.dart）。
+  ///
+  /// 这个数不能由 correct / answered 反推：偏好题没有对错，跳过不罚分，
+  /// 光看「答了 10 道、对 6 道」算不出 6−4 还是 6−0。
+  final int points;
+
   const QuizTally({
     this.answered = 0,
     this.correct = 0,
     this.skipped = 0,
+    this.points = 0,
   });
 
   QuizTally operator +(QuizTally o) => QuizTally(
         answered: answered + o.answered,
         correct: correct + o.correct,
         skipped: skipped + o.skipped,
+        points: points + o.points,
       );
 
   static const QuizTally zero = QuizTally();
@@ -93,6 +102,9 @@ class _QuizPaneState extends State<QuizPane> {
   int _answeredCount = 0;
   int _skipped = 0;
 
+  /// 本轮累计得分，跨「再来一轮」会跟着 tally 交出去
+  int _points = 0;
+
   Set<int> _picked = <int>{};
   bool _graded = false;
   Grade? _result;
@@ -116,6 +128,7 @@ class _QuizPaneState extends State<QuizPane> {
         answered: _answeredCount,
         correct: _correct,
         skipped: _skipped,
+        points: _points,
       );
 
   void _finishRound() => widget.onFinish(_tally);
@@ -147,6 +160,9 @@ class _QuizPaneState extends State<QuizPane> {
     // 用户要的是答错和跳过都要在战力图上往下掉。
     PowerChart.instance.apply(axis: q.axis, skipped: true);
     PowerChart.instance.save();
+    // 总分：跳过不扣分。它记的是「这块先不问」，不是答错；
+    // 罚分只会让人不敢跳过，宁可瞎猜——那反而把画像喂脏了。
+    ScoreBook.instance.recordSkip().save();
     _skipped++;
     Journal.add(
       JKind.quiz,
@@ -235,6 +251,19 @@ class _QuizPaneState extends State<QuizPane> {
     }
     _profile.save();
     PowerChart.instance.save();
+
+    // 总分：答对 +1、答错 −1，偏好题不计分（口径见 score.dart）。
+    // 多选「没选全」按答错处理——没答对就是没答对，不给半分的灰色地带，
+    // 否则「+1 / −1」这条规则就没法向用户解释清楚。
+    if (q.kind == QKind.pref) {
+      ScoreBook.instance.recordPref().save();
+    } else if (g.correct == true) {
+      ScoreBook.instance.record(correct: true).save();
+      _points += ScoreBook.gainRight;
+    } else {
+      ScoreBook.instance.record(correct: false).save();
+      _points -= ScoreBook.lossWrong;
+    }
 
     final String detail;
     if (q.kind == QKind.pref) {

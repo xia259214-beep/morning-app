@@ -17,6 +17,7 @@ import 'radar.dart';
 import 'qbank.dart';
 import 'quiz_pane.dart';
 import 'rank.dart';
+import 'score.dart';
 
 class QuizPage extends StatefulWidget {
   /// 进来时用的题数档位；不传就按设置里的默认值
@@ -103,6 +104,13 @@ class _QuizPageState extends State<QuizPage> {
                     style: TextStyle(fontSize: 10.5, color: AppColor.accent)),
               ),
               const Spacer(),
+              // 总分就摆在答题页右上角：答题时最想知道「我这一路挣了多少」，
+              // 藏进「我的」里得点两层才看得到，等于没有。
+              Text('总分 ',
+                  style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
+              Text('${ScoreBook.instance.total}',
+                  style: const TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w500)),
             ],
           ),
           const SizedBox(height: 6),
@@ -244,6 +252,42 @@ class _QuizPageState extends State<QuizPage> {
           Text('跳过 ${t.skipped} 道，这几块先不问',
               style: TextStyle(fontSize: 11.5, color: AppColor.sub)),
         ],
+        const SizedBox(height: 14),
+        // 本轮得分：答对 +1、答错 −1、跳过不计（口径见 score.dart）
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          decoration: BoxDecoration(
+            color: AppColor.accentSoft,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('本轮得分',
+                      style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
+                  const SizedBox(height: 2),
+                  Text(t.points > 0 ? '+${t.points}' : '${t.points}',
+                      style: const TextStyle(
+                          fontSize: 26, height: 1.1, fontWeight: FontWeight.w300)),
+                ],
+              ),
+              const Spacer(),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('总分 ${ScoreBook.instance.total}',
+                      style: const TextStyle(fontSize: 13)),
+                  const SizedBox(height: 3),
+                  Text('答对 +1 · 答错 −1 · 跳过不计',
+                      style: TextStyle(fontSize: 9.5, color: AppColor.sub)),
+                ],
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 22),
         Container(
           padding: const EdgeInsets.all(16),
