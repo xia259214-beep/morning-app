@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'core.dart';
 import 'focus.dart';
 import 'glass.dart';
+import 'liquid.dart';
 import 'journal.dart';
 import 'pages_more.dart';
 import 'pages_quiz.dart';
@@ -253,15 +254,9 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 18),
                 SizedBox(
                   width: double.infinity,
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColor.ink,
-                      foregroundColor: AppColor.onInk,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
+                  child: LiquidButton(
+                    text: today?.completed == true ? '再过一遍晨间流程' : '开始今天的晨间流程',
                     onPressed: widget.onStartMorning,
-                    child: Text(today?.completed == true ? '再过一遍晨间流程' : '开始今天的晨间流程'),
                   ),
                 ),
               ],
@@ -529,11 +524,17 @@ class _Panel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
-      padding: padding,
-      margin: EdgeInsets.zero,
-      radius: 20,
-      child: child,
+    // 液态风格用带棱镜边和厚度的新卡片；没开就走原来的玻璃卡
+    return ValueListenableBuilder<String>(
+      valueListenable: Liquid.notifier,
+      builder: (context, _, __) => Liquid.on
+          ? LiquidFrame(padding: padding, child: child)
+          : GlassCard(
+              padding: padding,
+              margin: EdgeInsets.zero,
+              radius: 20,
+              child: child,
+            ),
     );
   }
 }

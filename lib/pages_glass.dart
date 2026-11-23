@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'core.dart';
 import 'glass.dart';
+import 'liquid.dart';
 
 // ============================================================================
 // 界面质感设置（v1.9.0）
@@ -47,8 +48,17 @@ class GlassPage extends StatefulWidget {
 
 class _GlassPageState extends State<GlassPage> {
   void _pick(GlassStyle s) {
+    // 选了原来的质感就关掉液态风格，两套不会打架
+    Liquid.apply('');
+    Store.set('liquidId', '');
     Glass.apply(s.id);
     Store.set('glassId', s.id);
+    setState(() {});
+  }
+
+  void _pickLiquid(LiquidTheme t) {
+    Liquid.apply(t.id);
+    Store.set('liquidId', t.id);
     setState(() {});
   }
 
@@ -79,9 +89,19 @@ class _GlassPageState extends State<GlassPage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 6, 18, 30),
         children: [
-          Text('三套都做出来了，点一下立刻换，不用重启。选完会记住。',
+          Text('点一下立刻换，不用重启。选完会记住。',
               style: TextStyle(fontSize: 12.5, color: AppColor.sub, height: 1.6)),
           const SizedBox(height: 16),
+          _sectionTitle('液态水晶 · 新'),
+          const SizedBox(height: 6),
+          Text('按钮与卡片有厚度、棱镜描边；背景光晕跟着太阳走，早上东边亮、正午头顶亮、傍晚西边亮。',
+              style: TextStyle(fontSize: 11, height: 1.55, color: AppColor.sub)),
+          const SizedBox(height: 10),
+          _liquidCard(null),
+          for (final t in kLiquidThemes) _liquidCard(t),
+          const SizedBox(height: 18),
+          _sectionTitle('原来的三套质感 · 都保留'),
+          const SizedBox(height: 10),
           for (final s in kGlassStyles) _styleCard(s),
           const SizedBox(height: 18),
           _sectionTitle('动效与声音'),
@@ -116,6 +136,71 @@ class _GlassPageState extends State<GlassPage> {
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.6)),
       );
+
+  /// 液态风格卡片。[t] 为 null 表示「用回原来的风格」这一项。
+  Widget _liquidCard(LiquidTheme? t) {
+    final active = t == null ? !Liquid.on : (Liquid.id == t.id);
+    final swatch = t ?? kLiquidThemes.first;
+    return GlassCard(
+      padding: const EdgeInsets.all(12),
+      radius: 16,
+      featured: active,
+      blur: false,
+      accent: active ? AppColor.accent.withOpacity(0.85) : null,
+      onTap: () {
+        if (t == null) {
+          Liquid.apply('');
+          Store.set('liquidId', '');
+        } else {
+          _pickLiquid(t);
+        }
+        setState(() {});
+      },
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(11),
+            child: SizedBox(
+              width: 72,
+              height: 62,
+              child: CustomPaint(
+                painter: _MiniLiquidPainter(swatch, t == null),
+                child: Center(
+                  child: t == null
+                      ? Icon(Icons.auto_awesome_outlined,
+                          size: 20, color: AppColor.sub)
+                      : null,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(t?.name ?? '用回原来的风格',
+                    style: TextStyle(
+                        fontSize: 15,
+                        color: AppColor.ink,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 5),
+                Text(t?.note ?? '原来的水晶 / 流光 / 原纸三套，不变',
+                    style: TextStyle(
+                        fontSize: 11, height: 1.5, color: AppColor.sub)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Icon(
+            active ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+            size: 20,
+            color: active ? AppColor.accent : AppColor.sub,
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _styleCard(GlassStyle s) {
     final active = Glass.style.id == s.id;
@@ -314,6 +399,63 @@ class _GlassPageState extends State<GlassPage> {
       ),
     );
   }
+}
+
+/// 液态风格缩略图：底色 + 太阳光斑 + 一张棱镜边小卡
+class _MiniLiquidPainter extends CustomPainter {
+  final LiquidTheme t;
+  final bool plain;
+
+  _MiniLiquidPainter(this.t, this.plain);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    if (plain) {
+      canvas.drawRect(rect, Paint()..color = AppColor.card);
+      return;
+    }
+    canvas.drawRect(rect, Paint()..color = t.bg);
+    final c = Offset(size.width * 0.24, size.height * 0.22);
+    final r = size.width * 0.8;
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = RadialGradient(
+          center: Alignment.center,
+          radius: 1,
+          colors: [t.orb.withOpacity(0.6), t.orb.withAlpha(0)],
+          tileMode: TileMode.clamp,
+        ).createShader(Rect.fromCircle(center: c, radius: r)),
+    );
+    final card = RRect.fromRectAndRadius(
+      Rect.fromLTWH(10, 14, size.width - 20, size.height - 28),
+      const Radius.circular(8),
+    );
+    canvas.drawRRect(
+      card,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [t.cardFrom, t.cardTo],
+        ).createShader(rect),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(card.outerRect.deflate(1), const Radius.circular(7)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..shader = LinearGradient(
+          colors: [t.edgeA, t.edgeB, t.edgeC],
+        ).createShader(rect),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MiniLiquidPainter old) =>
+      old.t != t || old.plain != plain;
 }
 
 /// 方案缩略图：静态画一遍底色 + 光斑，不启动动画，省得设置页也一直重绘。

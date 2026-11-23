@@ -8,6 +8,7 @@ import 'core.dart';
 import 'crash_log.dart';
 import 'glass.dart';
 import 'journal.dart';
+import 'liquid.dart';
 import 'pages_alarms.dart';
 import 'pages_glass.dart';
 import 'pages_home.dart';
@@ -33,6 +34,8 @@ Future<void> main() async {
       Store.s('glassId', 'crystal'),
       motionOn: Store.b('glassMotion', true),
     );
+    // v1.17.0：液态水晶风格（香槟/极光/曜石/薄荷）。空串=沿用原来的风格。
+    Liquid.apply(Store.s('liquidId', ''));
     _applyStatusBar();
     runApp(const MorningApp());
   }, (error, stack) {
@@ -63,19 +66,22 @@ class MorningApp extends StatelessWidget {
       valueListenable: AppColor.notifier,
       builder: (context, themeId, _) => ValueListenableBuilder<String>(
         valueListenable: Glass.notifier,
-        builder: (context, glassId, __) {
+        builder: (context, glassId, __) => ValueListenableBuilder<String>(
+          valueListenable: Liquid.notifier,
+          builder: (context, liquidId, ___) {
           _applyStatusBar();
           return MaterialApp(
             title: '晨序MORNING',
             debugShowCheckedModeBanner: false,
             theme: buildAppTheme(),
-            // 整棵树底下铺一层会呼吸的水晶背景，所有页面共用，
-            // 包括 push 出来的流程页、答题页、榜单页。
-            builder: (context, child) =>
-                GlassBackdrop(child: child ?? const SizedBox.shrink()),
+            // 液态风格用太阳光晕背景；没开就用原来的呼吸水晶背景。
+            builder: (context, child) => Liquid.on
+                ? LiquidBackdrop(child: child ?? const SizedBox.shrink())
+                : GlassBackdrop(child: child ?? const SizedBox.shrink()),
             home: const RootShell(),
           );
-        },
+          },
+        ),
       ),
     );
   }
