@@ -56,12 +56,22 @@ Future<bool> showUpdateDialog(
 
   final go = await showDialog<bool>(
     context: context,
+    // 不让点外面关掉：误触关掉不会记「以后再说」，下次开屏又弹一次，
+    // 反而更烦。要关就点「以后再说 / 知道了」，语义清楚。
+    barrierDismissible: false,
     builder: (ctx) => AlertDialog(
-      backgroundColor: AppColor.glassPanel,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      // 真机踩过：用 glassPanel（半透明）会让说明文字和底下页面的字叠在一起，
+      // 一片糊。更新说明是要被读的，这里改用不透明的卡片色。
+      backgroundColor: AppColor.card,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: AppColor.glassEdge),
+      ),
       title: Text(
         manual ? '有新版本 v${info.version}' : '晨序有新版了 · v${info.version}',
-        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500),
+        style: TextStyle(
+            fontSize: 17, fontWeight: FontWeight.w500, color: AppColor.ink),
       ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -73,8 +83,16 @@ Future<bool> showUpdateDialog(
           ),
           if (notes.isNotEmpty) ...[
             const SizedBox(height: 12),
-            ConstrainedBox(
+            // 说明可能很长，放进一个浅色滚动框：既是「这段能滚」的视觉提示，
+            // 也避免文字被硬切在半行上（真机上看着像渲染错误）。
+            Container(
               constraints: const BoxConstraints(maxHeight: 200),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              decoration: BoxDecoration(
+                color: AppColor.bg.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColor.line),
+              ),
               child: SingleChildScrollView(
                 child: Text(
                   notes,
@@ -92,14 +110,24 @@ Future<bool> showUpdateDialog(
           ),
         ],
       ),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(ctx).pop(false),
-          child: Text(manual ? '知道了' : '以后再说'),
+          child: Text(manual ? '知道了' : '以后再说',
+              style: TextStyle(fontSize: 14, color: AppColor.sub)),
         ),
         FilledButton(
           onPressed: () => Navigator.of(ctx).pop(true),
-          child: const Text('去下载'),
+          style: FilledButton.styleFrom(
+            // 跟 App 里其他主按钮一致：底色 ink、字色 bg（深浅主题自动反向）
+            backgroundColor: AppColor.ink,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: Text('去下载',
+              style: TextStyle(fontSize: 14, color: AppColor.bg)),
         ),
       ],
     ),
