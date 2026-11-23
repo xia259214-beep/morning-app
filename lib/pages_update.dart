@@ -104,8 +104,13 @@ Future<bool> showUpdateDialog(
           ],
           const SizedBox(height: 14),
           Text(
-            '点「去下载」→ 浏览器里下完点安装 → 系统问「是否允许安装」时选允许。'
-            '不用卸载旧版，数据不会丢。',
+            // 兜底路径（API 被限流）拿不到 APK 直链，只能给发布页，
+            // 文案得跟着变，否则用户会在页面里找「下载按钮」找不着。
+            info.apkUrl.isEmpty
+                ? '点「打开发布页」→ 在页面里点 morning-*.apk 下载 → 下完点安装。'
+                    '不用卸载旧版，数据不会丢。'
+                : '点「去下载」→ 浏览器里下完点安装 → 系统问「是否允许安装」时选允许。'
+                    '不用卸载旧版，数据不会丢。',
             style: TextStyle(fontSize: 11.5, height: 1.6, color: AppColor.sub),
           ),
         ],
@@ -126,7 +131,7 @@ Future<bool> showUpdateDialog(
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          child: Text('去下载',
+          child: Text(info.apkUrl.isEmpty ? '打开发布页' : '去下载',
               style: TextStyle(fontSize: 14, color: AppColor.bg)),
         ),
       ],

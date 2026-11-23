@@ -110,6 +110,24 @@ class UpdateInfo {
   }
 }
 
+/// 从 `/releases/latest` 的跳转地址里取 tag。
+///
+/// `https://github.com/o/r/releases/tag/v1.16.1` → `v1.16.1`；
+/// 末尾带查询串、或者跳到了别的形状，一律返回空串（宁可不提示，也不给错链接）。
+String tagFromReleaseLocation(String location) {
+  final loc = location.trim();
+  const marker = '/releases/tag/';
+  final i = loc.indexOf(marker);
+  if (i < 0) return '';
+  var tag = loc.substring(i + marker.length);
+  final cut = tag.indexOf('?');
+  if (cut >= 0) tag = tag.substring(0, cut);
+  final hash = tag.indexOf('#');
+  if (hash >= 0) tag = tag.substring(0, hash);
+  tag = tag.replaceAll('/', '').trim();
+  return tag;
+}
+
 class UpdateResult {
   final UpdateStatus status;
   final UpdateInfo? info;
@@ -170,8 +188,59 @@ class UpdateChecker {
     return kAppVersion;
   }
 
-  /// 拉最新 release。任何异常都吞掉返回 null。
+  /// 拉最新 release：先走 API（能拿到更新说明），拿不到再走不耗配额的兜底。
   static Future<UpdateInfo?> fetchLatest({
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    final viaApi = await _fetchViaApi(timeout: timeout);
+    if (viaApi != null) return viaApi;
+    return fetchViaRedirect(timeout: timeout);
+  }
+
+  /// GitHub API 未登录时每小时只给 60 次，还是**按出口 IP** 算——
+  /// 家里几台设备、或者用户手快连点几次，配额说没就没。真机实测撞到过：
+  /// `HTTP 403 API rate limit exceeded`。
+  ///
+  /// 兜底方案：直接请求 HTML 的 `/releases/latest`，它不消耗 API 配额，
+  /// 只看 302 的 Location 就能拿到 tag。代价是拿不到更新说明，所以
+  /// 这条路径下把下载指向 release 页面（用户在页面上点 APK），不给可能 404 的直链。
+  static Future<UpdateInfo?> fetchViaRedirect({
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    HttpClient? client;
+    try {
+      client = HttpClient()..connectionTimeout = timeout;
+      final req = await client
+          .getUrl(Uri.parse('https://github.com/$repo/releases/latest'))
+          .timeout(timeout);
+      req.headers.set('User-Agent', 'MorningApp-Updater');
+      req.headers.set('Accept', 'text/html');
+      // 不跟随跳转：要的就是 Location 这一行
+      req.followRedirects = false;
+      final res = await req.close().timeout(timeout);
+      if (res.statusCode < 300 || res.statusCode >= 400) return null;
+      final location = res.headers.value('location') ?? '';
+      final tag = tagFromReleaseLocation(location);
+      if (tag.isEmpty) return null;
+      return UpdateInfo(
+        version: tag.startsWith('v') || tag.startsWith('V')
+            ? tag.substring(1)
+            : tag,
+        tag: tag,
+        notes: '',
+        apkUrl: '',
+        pageUrl: 'https://github.com/$repo/releases/tag/$tag',
+        publishedAt: '',
+      );
+    } catch (_) {
+      return null;
+    } finally {
+      client?.close(force: true);
+    }
+  }
+
+  /// 拉最新 release（API 路径）。任何异常都吞掉返回 null。
+  static Future<UpdateInfo?> _fetchViaApi({
     Duration timeout = const Duration(seconds: 10),
   }) async {
     HttpClient? client;

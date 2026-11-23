@@ -86,4 +86,32 @@ void main() {
     expect(txt, isNot(contains('---')));
     expect(txt, contains('· 应用内检查更新'));
   });
+
+  group('兜底路径：从 302 Location 取 tag（API 限流时用）', () {
+    test('标准 release 跳转', () {
+      expect(
+        tagFromReleaseLocation(
+            'https://github.com/xia259214-beep/morning-app/releases/tag/v1.16.1'),
+        'v1.16.1',
+      );
+    });
+
+    test('带查询串或片段', () {
+      expect(
+        tagFromReleaseLocation(
+            'https://github.com/o/r/releases/tag/v1.16.1?foo=1'),
+        'v1.16.1',
+      );
+      expect(
+        tagFromReleaseLocation('https://github.com/o/r/releases/tag/v1.16.1#x'),
+        'v1.16.1',
+      );
+    });
+
+    test('跳到别的形状一律不认（宁可不提示，也不给错链接）', () {
+      expect(tagFromReleaseLocation('https://github.com/o/r/releases'), '');
+      expect(tagFromReleaseLocation(''), '');
+      expect(tagFromReleaseLocation('https://github.com/login'), '');
+    });
+  });
 }
