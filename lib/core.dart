@@ -6,9 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'glass.dart';
+import 'liquid.dart';
 
 /// App 版本号（与 pubspec.yaml 同步）。展示与崩溃日志都用它，避免写死多处。
-const String kAppVersion = '1.17.0';
+const String kAppVersion = '1.18.0';
 
 // ============================================================================
 // 1. 设计系统（Minimal / 安静 / 温暖）
@@ -149,13 +150,28 @@ class AppColor {
   // 选「原纸」时三个 getter 原样退回，和旧版一个像素都不差。
   // （core.dart 与 glass.dart 互相 import 是允许的：这里全是运行时 getter，
   //   不涉及循环常量初始化。）
-  static Color get glassCard => Glass.on
-      ? _pack.card.withOpacity(Glass.style.cardAlpha)
-      : _pack.card;
-  static Color get glassEdge => glassEdgeColor();
-  static Color get glassPanel => Glass.on
-      ? panel.withOpacity((Glass.style.cardAlpha - 0.06).clamp(0.12, 1.0))
-      : panel;
+  /// v1.17.1：液态风格下卡片用固定亮色，不跟随系统配色。
+  /// 这样新闻/记录/我的等页面那些直接写 AppColor.glassCard 的容器
+  /// 会自动变亮，不会在深色背景上暗成一团。
+  static Color get glassCard {
+    final lt = Liquid.theme;
+    if (lt != null) return Liquid.surfaceOf(lt);
+    return Glass.on ? _pack.card.withOpacity(Glass.style.cardAlpha) : _pack.card;
+  }
+
+  static Color get glassEdge {
+    final lt = Liquid.theme;
+    if (lt != null) return Liquid.edgeOf(lt);
+    return glassEdgeColor();
+  }
+
+  static Color get glassPanel {
+    final lt = Liquid.theme;
+    if (lt != null) return Liquid.surfaceOf(lt);
+    return Glass.on
+        ? panel.withOpacity((Glass.style.cardAlpha - 0.06).clamp(0.12, 1.0))
+        : panel;
+  }
   static Color get sub => _pack.sub;
   static Color get line => _pack.line;
   static Color get accent => _pack.accent;
@@ -369,6 +385,23 @@ class Bridge {
 
   // 相机
   static Future<String?> takePhoto() => _call<String>('takePhoto');
+
+  /// v1.17.0 头像：从相册挑一张。原生负责裁方、缩到 256px、压 JPEG 再 base64，
+  /// 返回 {ok, b64|reason}。reason: cancel / no_picker / decode / oom / busy
+  static Future<Map<String, dynamic>> pickAvatar() async {
+    final r = await _call<Map>('pickAvatar');
+    return r == null
+        ? <String, dynamic>{'ok': false, 'reason': 'unavailable'}
+        : Map<String, dynamic>.from(r);
+  }
+
+  /// v1.17.0 头像：当场拍一张。返回值同上。
+  static Future<Map<String, dynamic>> shootAvatar() async {
+    final r = await _call<Map>('shootAvatar');
+    return r == null
+        ? <String, dynamic>{'ok': false, 'reason': 'unavailable'}
+        : Map<String, dynamic>.from(r);
+  }
 
   // 语音合成
   // 返回 {ok, state}：ok=false 说明本机没有可用语音引擎，需要引导用户安装

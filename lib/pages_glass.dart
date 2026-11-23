@@ -57,6 +57,13 @@ class _GlassPageState extends State<GlassPage> {
   }
 
   void _pickLiquid(LiquidTheme t) {
+    // 亮卡配深字：如果用户当前是墨夜配色（浅字），亮卡上会看不清。
+    // 自动切回暖纸配色，用户无感；曜石是中亮暗卡，配墨夜正好，不切。
+    final lightSurface = !Liquid.surfaceUsesLightInk(t);
+    if (lightSurface && AppColor.isDark) {
+      AppColor.apply('paper');
+      Store.set('themeId', 'paper');
+    }
     Liquid.apply(t.id);
     Store.set('liquidId', t.id);
     setState(() {});

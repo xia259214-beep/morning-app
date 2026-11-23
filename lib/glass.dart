@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import 'core.dart';
+import 'liquid.dart';
 
 /// flutter_test 会注入 FLUTTER_TEST=true。widget 测试里若开无限动画，
 /// pumpAndSettle 永远等不到「画面静止」而超时；真机不受影响。
@@ -400,6 +401,54 @@ class GlassCard extends StatelessWidget {
   }
 
   Widget _body(bool glass, GlassStyle s, BorderRadius br) {
+    // v1.17.1：液态风格下，GlassCard 也用固定亮色 + 棱镜描边。
+    // 新闻页等地方直接写 GlassCard，这里一改，它们全部自动变亮，
+    // 不用逐处动调用点；关掉液态风格就走下面原来的逻辑，零影响。
+    final lt = Liquid.theme;
+    if (lt != null) {
+      final hi = accent ?? Liquid.edgeOf(lt);
+      final lightInk = Liquid.surfaceUsesLightInk(lt);
+      final deco = BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Liquid.surfaceOf(lt), lt.cardTo],
+        ),
+        borderRadius: br,
+        border: Border.all(color: hi, width: featured ? 1.6 : 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.34),
+            blurRadius: featured ? 22 : 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      );
+      final inner = Stack(
+        children: [
+          Padding(padding: padding, child: child),
+          Positioned(
+            left: radius * 0.8,
+            right: radius * 0.8,
+            top: 0,
+            height: 1.4,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [
+                    Colors.white.withOpacity(0),
+                    Colors.white.withOpacity(lightInk ? 0.14 : 0.62),
+                    Colors.white.withOpacity(0),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+      return ClipRRect(borderRadius: br, child: DecoratedBox(decoration: deco, child: inner));
+    }
+
     if (!glass) {
       return DecoratedBox(
         decoration: BoxDecoration(

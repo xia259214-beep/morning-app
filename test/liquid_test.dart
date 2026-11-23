@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:morning/core.dart';
 import 'package:morning/liquid.dart';
 
 void main() {
@@ -54,6 +55,30 @@ void main() {
     test('未知 id 安全回退到第一套，不会崩', () {
       Liquid.apply('not-exist');
       expect(Liquid.theme?.id, kLiquidThemes.first.id);
+      Liquid.apply('');
+    });
+
+    test('卡片表面永远比背景亮：亮度差至少 25%', () {
+      for (final t in kLiquidThemes) {
+        final surface = Liquid.surfaceOf(t);
+        final background = t.bg;
+        // 相对亮度：0.2126R + 0.7152G + 0.0722B
+        double lum(Color c) =>
+            (0.2126 * c.red + 0.7152 * c.green + 0.0722 * c.blue) / 255;
+        final diff = lum(surface) - lum(background);
+        expect(diff > 0.25, true,
+            reason: '${t.name} 卡片和背景太接近，差只有 ${diff.toStringAsFixed(2)}');
+      }
+    });
+
+    test('GlassCard 与 glassCard 在液态下都取固定亮色，跟随风格', () {
+      for (final t in kLiquidThemes) {
+        Liquid.apply(t.id);
+        expect(AppColor.glassCard, Liquid.surfaceOf(t),
+            reason: '${t.name}: glassCard 没跟上液态亮色');
+        expect(AppColor.glassEdge, Liquid.edgeOf(t),
+            reason: '${t.name}: glassEdge 没跟上棱镜描边');
+      }
       Liquid.apply('');
     });
   });

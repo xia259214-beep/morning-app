@@ -100,8 +100,8 @@ const List<LiquidTheme> kLiquidThemes = <LiquidTheme>[
     note: '深色高级 · 按键像点亮的水面',
     bg: Color(0xFF0C1412),
     orb: Color(0xFF3CCDA5),
-    cardFrom: Color(0xFF2C423E),
-    cardTo: Color(0xFF142220),
+    cardFrom: Color(0xFF465F58),
+    cardTo: Color(0xFF2C403A),
     edgeA: Color(0xFF2D5F58),
     edgeB: Color(0xFF7FE0C4),
     edgeC: Color(0xFF4A8F80),
@@ -151,6 +151,22 @@ class Liquid {
     _id = v;
     notifier.value = id;
   }
+
+  // ---- 给旧容器用的「液态卡片表面色」 ----------------------------------
+  //
+  // 新闻 / 记录 / 我的等页面里有一大批直接写 AppColor.glassCard 的容器。
+  // 它们要能自动跟着液态风格变亮，就从这里取色：固定亮色，不跟随系统
+  // 配色（用户设成深色主题时也不会跟着暗下去）。这样卡片与背景的
+  // 反差恒定，不会再出现「框子和背景一个色、字看不清」。
+
+  /// 卡片填充色（不透明，保证一定比背景亮）
+  static Color surfaceOf(LiquidTheme t) => t.cardFrom;
+
+  /// 卡片描边色（棱镜高光）
+  static Color edgeOf(LiquidTheme t) => t.edgeB;
+
+  /// 这套风格的卡片是不是「中亮底 + 浅字」（曜石），其余都是「亮底 + 深字」
+  static bool surfaceUsesLightInk(LiquidTheme t) => t.id == 'obsidian';
 }
 
 /// 太阳位置：0~1 的屏幕坐标 + 0~1 的高度（夜里 0）。

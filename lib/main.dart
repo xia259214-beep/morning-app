@@ -35,7 +35,16 @@ Future<void> main() async {
       motionOn: Store.b('glassMotion', true),
     );
     // v1.17.0：液态水晶风格（香槟/极光/曜石/薄荷）。空串=沿用原来的风格。
-    Liquid.apply(Store.s('liquidId', ''));
+    final liquidId = Store.s('liquidId', '');
+    Liquid.apply(liquidId);
+    // v1.17.1：亮卡配深字。历史组合「墨夜配色 + 亮系液态」会把浅字压在亮卡上，
+    // 看不清；启动时自动校回暖纸。曜石是中亮暗卡，配墨夜正好，不动。
+    if (Liquid.on && !Liquid.surfaceUsesLightInk(Liquid.theme!)) {
+      if (AppColor.isDark) {
+        AppColor.apply('paper');
+        Store.set('themeId', 'paper');
+      }
+    }
     _applyStatusBar();
     runApp(const MorningApp());
   }, (error, stack) {
