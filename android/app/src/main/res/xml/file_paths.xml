@@ -3,4 +3,6 @@
     <files-path name="photos" path="photos/" />
     <!-- v1.15.0：导出备份时可以「发送到…」，分享用的临时文件放在 cache/share/ 下 -->
     <cache-path name="share" path="share/" />
+    <!-- v1.17.0：拍头像时相机要把原图写进这里，拍完立刻裁切、原图删掉 -->
+    <cache-path name="avatar" path="avatar/" />
 </paths>

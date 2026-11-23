@@ -3,6 +3,8 @@ package cn.morning.morning
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
@@ -17,10 +19,12 @@ import android.provider.Settings
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
+import android.util.Base64
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.Locale
 
@@ -41,6 +45,12 @@ class MainActivity : FlutterActivity() {
     private var exportResult: MethodChannel.Result? = null
     private var exportPayload: String? = null
     private var importResult: MethodChannel.Result? = null
+
+    // v1.17.0 头像：选图和拍照都是异步的，回调同样先挂在这里。
+    // 头像不落盘，直接压成 256×256 的 JPEG 再 base64 交回 Dart ——
+    // 这样它跟着 settings 走，换手机时备份里天然就带着。
+    private var avatarResult: MethodChannel.Result? = null
+    private var pendingAvatarPhoto: File? = null
 
     /// 预生成播报音频的播放器（见 playSample）
     private var samplePlayer: MediaPlayer? = null
@@ -148,6 +158,10 @@ class MainActivity : FlutterActivity() {
                 }
 
                 "takePhoto" -> takePhoto(result)
+
+                "pickAvatar" -> pickAvatar(result)
+
+                "shootAvatar" -> shootAvatar(result)
 
                 "speak" -> result.success(speak(call.argument<String>("text") ?: ""))
 
@@ -478,6 +492,110 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    // ------------------------------------------------------------ 头像
+    // v1.17.0：用户说「点进去想换个头像换不了」——之前那块是个写死的图标。
+    // 头像只有两种来源：相册里挑一张，或者当场拍一张。两条路都在原生处理成
+    // 256×256 的 JPEG 再交给 Dart，不建文件、不用管文件生命周期，
+    // 而且它跟着 settings 走，换手机时备份里天然就带着。
+    private fun pickAvatar(result: MethodChannel.Result) {
+        if (avatarResult != null) {
+            // 上一次选择器还开着：直接拒绝，别把回调结果覆盖掉
+            result.success(mapOf("ok" to false, "reason" to "busy"))
+            return
+        }
+        avatarResult = result
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "image/*"
+        }
+        try {
+            startActivityForResult(intent, REQ_AVATAR_PICK)
+        } catch (e: Exception) {
+            avatarResult = null
+            result.success(mapOf("ok" to false, "reason" to "no_picker"))
+        }
+    }
+
+    private fun shootAvatar(result: MethodChannel.Result) {
+        if (avatarResult != null) {
+            result.success(mapOf("ok" to false, "reason" to "busy"))
+            return
+        }
+        val dir = File(cacheDir, "avatar").apply { mkdirs() }
+        val file = File(dir, "avatar_${System.currentTimeMillis()}.jpg")
+        avatarResult = result
+        pendingAvatarPhoto = file
+        try {
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                this, "$packageName.fileprovider", file
+            )
+            val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
+                putExtra(MediaStore.EXTRA_OUTPUT, uri)
+                addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivityForResult(intent, REQ_AVATAR_CAMERA)
+        } catch (e: Exception) {
+            // 没有相机 App，或被设备策略禁用：清干净状态，别把回调永远挂住
+            avatarResult = null
+            pendingAvatarPhoto = null
+            result.success(mapOf("ok" to false, "reason" to "no_camera"))
+        }
+    }
+
+    /**
+     * 任意尺寸的图 → 居中裁正方形 → 缩到 AVATAR_PX → JPEG → base64。
+     *
+     * 大图必须先按 2 的幂采样再解码：一张 5000 万像素的照片直接 decode 会 OOM，
+     * 那不是「图太大慢一点」，是进程被系统杀掉。
+     */
+    private fun avatarFromUri(uri: Uri): Map<String, Any> {
+        return try {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+                return mapOf("ok" to false, "reason" to "decode")
+            }
+            var sample = 1
+            while (bounds.outWidth / (sample * 2) >= AVATAR_PX &&
+                bounds.outHeight / (sample * 2) >= AVATAR_PX
+            ) {
+                sample *= 2
+            }
+            val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+            val src = contentResolver.openInputStream(uri)?.use {
+                BitmapFactory.decodeStream(it, null, opts)
+            } ?: return mapOf("ok" to false, "reason" to "decode")
+
+            val side = minOf(src.width, src.height)
+            val cropped = Bitmap.createBitmap(
+                src, (src.width - side) / 2, (src.height - side) / 2, side, side
+            )
+            val scaled = Bitmap.createScaledBitmap(cropped, AVATAR_PX, AVATAR_PX, true)
+            val out = ByteArrayOutputStream()
+            scaled.compress(Bitmap.CompressFormat.JPEG, AVATAR_QUALITY, out)
+            val bytes = out.toByteArray()
+            // 及早释放：这几张位图加起来可能几十 MB
+            if (src !== cropped) src.recycle()
+            if (cropped !== scaled) cropped.recycle()
+            scaled.recycle()
+
+            if (bytes.isEmpty()) {
+                mapOf("ok" to false, "reason" to "encode")
+            } else {
+                mapOf(
+                    "ok" to true,
+                    "b64" to Base64.encodeToString(bytes, Base64.NO_WRAP),
+                    "bytes" to bytes.size,
+                    "px" to AVATAR_PX
+                )
+            }
+        } catch (e: OutOfMemoryError) {
+            mapOf("ok" to false, "reason" to "oom")
+        } catch (e: Exception) {
+            mapOf("ok" to false, "reason" to "decode")
+        }
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         when (requestCode) {
@@ -493,6 +611,31 @@ class MainActivity : FlutterActivity() {
             }
             REQ_EXPORT -> finishExport(resultCode, data?.data)
             REQ_IMPORT -> finishImport(resultCode, data?.data)
+            REQ_AVATAR_PICK -> {
+                val r = avatarResult
+                avatarResult = null
+                val uri = data?.data
+                r?.success(
+                    if (resultCode == RESULT_OK && uri != null) avatarFromUri(uri)
+                    else mapOf("ok" to false, "reason" to "cancel")
+                )
+            }
+            REQ_AVATAR_CAMERA -> {
+                val r = avatarResult
+                val file = pendingAvatarPhoto
+                avatarResult = null
+                pendingAvatarPhoto = null
+                val ok = resultCode == RESULT_OK && file != null && file.exists() && file.length() > 0
+                r?.success(
+                    if (ok) avatarFromUri(Uri.fromFile(file))
+                    else mapOf("ok" to false, "reason" to "cancel")
+                )
+                // 原图只用来裁头像，留在缓存里没用，还占几十 MB
+                try {
+                    file?.delete()
+                } catch (e: Exception) {
+                }
+            }
         }
     }
 
@@ -653,6 +796,13 @@ class MainActivity : FlutterActivity() {
         private const val REQ_CAMERA = 1001
         private const val REQ_EXPORT = 1002
         private const val REQ_IMPORT = 1003
+        private const val REQ_AVATAR_PICK = 1004
+        private const val REQ_AVATAR_CAMERA = 1005
+
+        // 头像：256px 够「我的」页那个 46dp 的圆圈用，也够分享时看；
+        // 质量 88 时一般 15–30 KB，塞进 settings 不会把备份撑大。
+        private const val AVATAR_PX = 256
+        private const val AVATAR_QUALITY = 88
     }
 
     private var ttsReady = false

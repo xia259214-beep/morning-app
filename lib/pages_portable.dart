@@ -16,6 +16,7 @@
 import 'package:flutter/material.dart';
 
 import 'core.dart';
+import 'avatar.dart';
 import 'journal.dart';
 import 'portable.dart';
 import 'profile.dart';
@@ -128,6 +129,9 @@ class _DataPortPageState extends State<DataPortPage> {
 
       setState(() => _busy = true);
       final report = await Portable.apply(bundle, replace: mode == 'replace');
+      // v1.17.0：头像和昵称也在这份数据里，导入后必须让缓存失效，
+      // 否则「我的」页还画着导入前那张脸
+      Avatar.invalidate();
       if (!mounted) return;
       setState(() => _hasAutoBackup = report.autoBackupSaved);
       await _showReport(report, facts);
@@ -294,6 +298,7 @@ class _DataPortPageState extends State<DataPortPage> {
     setState(() => _busy = true);
     try {
       await Portable.apply(b, replace: true);
+      Avatar.invalidate();
       if (!mounted) return;
       setState(() {});
       _say('已撤销到导入前的数据');

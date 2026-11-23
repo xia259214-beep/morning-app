@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import 'core.dart';
+import 'avatar.dart';
 import 'glass.dart';
 import 'journal.dart';
 import 'outdoor.dart';
@@ -937,10 +938,137 @@ class _ProfilePageState extends State<ProfilePage> {
     });
   }
 
+  void _toast(String s) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s)));
+  }
+
+  /// v1.17.0：换头像。三条路——拍一张、从相册挑、退回默认图标。
+  ///
+  /// 拍照和选图都交给原生（见 MainActivity.pickAvatar/shootAvatar），
+  /// 原生裁好 256px 再回来，所以这里拿到的就是一个能直接存的 base64。
+  /// 「取消」要静默处理：用户点了返回不是错误，弹一句「失败」只会让人以为坏了。
+  Future<void> _editAvatar() async {
+    final has = Avatar.has;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColor.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColor.sub.withOpacity(0.28),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text('换个头像',
+                style: TextStyle(fontSize: 14, color: AppColor.sub)),
+            const SizedBox(height: 6),
+            ListTile(
+              leading: Icon(Icons.photo_camera_outlined, color: AppColor.accent),
+              title: const Text('拍一张', style: TextStyle(fontSize: 15)),
+              onTap: () => Navigator.pop(ctx, 'shoot'),
+            ),
+            ListTile(
+              leading: Icon(Icons.photo_library_outlined, color: AppColor.accent),
+              title: const Text('从相册选', style: TextStyle(fontSize: 15)),
+              onTap: () => Navigator.pop(ctx, 'pick'),
+            ),
+            if (has)
+              ListTile(
+                leading: Icon(Icons.restart_alt, color: AppColor.sub),
+                title: Text('恢复默认头像',
+                    style: TextStyle(fontSize: 15, color: AppColor.sub)),
+                onTap: () => Navigator.pop(ctx, 'clear'),
+              ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+
+    if (choice == 'clear') {
+      await Avatar.clear();
+      if (!mounted) return;
+      setState(() {});
+      _toast('头像已恢复默认');
+      return;
+    }
+
+    final r = choice == 'shoot' ? await Bridge.shootAvatar() : await Bridge.pickAvatar();
+    if (!mounted) return;
+    if (r['ok'] == true) {
+      final ok = await Avatar.save((r['b64'] ?? '').toString());
+      if (!mounted) return;
+      setState(() {});
+      _toast(ok ? '头像换好了' : '这张图读不出来，换一张试试');
+      return;
+    }
+    final reason = (r['reason'] ?? '').toString();
+    if (reason == 'cancel') return; // 用户自己退出来的，不用报错
+    _toast(switch (reason) {
+      'no_picker' => '这台手机没有可用的相册选择器',
+      'no_camera' => '没有找到可用的相机应用',
+      'oom' => '图片太大，内存不够处理这张图',
+      'busy' => '上一次还没结束，稍等一下',
+      'unavailable' => '这个版本还没装好头像功能',
+      _ => '这张图读不出来，换一张试试',
+    });
+  }
+
+  /// v1.17.0：改称呼。空名字会退回默认「晨友」，不留一个没名字的档案。
+  Future<void> _editNick() async {
+    final ctrl = TextEditingController(text: Nick.current);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColor.card,
+        title: const Text('改个称呼', style: TextStyle(fontSize: 16)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLength: Nick.maxLen,
+          textInputAction: TextInputAction.done,
+          decoration: const InputDecoration(
+            hintText: '比如：老张',
+            counterText: '',
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || !mounted) return;
+    await Nick.save(name);
+    if (!mounted) return;
+    setState(() {});
+    _toast('称呼已改');
+  }
+
   @override
   Widget build(BuildContext context) {
     final quiz = Store.i('quizCount', 10);
     final snooze = Store.i('snoozeDefault', 5);
+    final avatar = Avatar.image;
 
     return SafeArea(
       bottom: false,
@@ -958,11 +1086,48 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             child: Row(
               children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: AppColor.accentSoft),
-                  child: Icon(Icons.wb_twilight, color: AppColor.accent, size: 22),
+                // v1.17.0：这块以前是个写死的图标，用户点半天换不了。
+                // 现在整块可点，右下角那个小相机就是「这儿能改」的暗示。
+                // Semantics 是给读屏用的：纯图形元素不加标签，TalkBack 会念出一个
+                // 没有名字的按钮，视障用户根本不知道能点。
+                Semantics(
+                  button: true,
+                  label: avatar == null ? '换头像，当前是默认头像' : '换头像',
+                  child: GestureDetector(
+                    onTap: _editAvatar,
+                    behavior: HitTestBehavior.opaque,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColor.accentSoft,
+                            border: Border.all(color: AppColor.glassEdge),
+                          ),
+                          child: avatar == null
+                              ? Icon(Icons.wb_twilight, color: AppColor.accent, size: 22)
+                              : Image(image: avatar, fit: BoxFit.cover),
+                        ),
+                        Positioned(
+                          right: -2,
+                          bottom: -2,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColor.card,
+                              border: Border.all(color: AppColor.glassEdge),
+                            ),
+                            child: Icon(Icons.photo_camera, size: 10, color: AppColor.accent),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 14),
                 // v1.15.0：多了一个「总分」，中间这段必须能收窄。
@@ -972,8 +1137,30 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('晨友', style: TextStyle(fontSize: 16)),
-                      const SizedBox(height: 4),
+                      // v1.17.0：名字也能改。默认还是「晨友」，但不再是写死的。
+                      InkWell(
+                        onTap: _editNick,
+                        borderRadius: BorderRadius.circular(6),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  Nick.current,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 16),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(Icons.edit_outlined, size: 12, color: AppColor.sub),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
                       Text(
                         _model.isEmpty ? '读设备信息…' : _model,
                         maxLines: 1,
