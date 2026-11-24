@@ -121,7 +121,9 @@ def build(root, out):
     )
     for i, (x, url, label, hint) in enumerate(cards):
         d.rounded_rectangle([x, Y, x + BOX, Y + BOX], radius=28, fill=CARD, outline=LINE, width=2)
-        q = qr_img(url, BOX - 96)  # 留出右上角标，别压住二维码静区
+        # 右上角标占 64px；二维码再缩一圈，保证静区完整不被压住。
+        # v1.19.0 的 APK 直链比旧版长，二维码模块更密，静区少一点就扫不出来。
+        q = qr_img(url, BOX - 140)
         img.paste(q, (int(x + (BOX - q.size[0]) / 2), int(Y + (BOX - q.size[1]) / 2)))
         d.ellipse([x + BOX - 64, Y + 16, x + BOX - 18, Y + 62], fill=ACCENT)
         num = str(i + 1)
