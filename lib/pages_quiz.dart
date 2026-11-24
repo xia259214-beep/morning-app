@@ -16,6 +16,7 @@ import 'profile.dart';
 import 'radar.dart';
 import 'qbank.dart';
 import 'quiz_pane.dart';
+import 'leaderboard.dart';
 import 'rank.dart';
 import 'score.dart';
 
@@ -111,6 +112,22 @@ class _QuizPageState extends State<QuizPage> {
               Text('${ScoreBook.instance.total}',
                   style: const TextStyle(
                       fontSize: 15, fontWeight: FontWeight.w500)),
+              const SizedBox(width: 8),
+              // v1.20.0：实时名次。内置对手锚在我附近，所以每答一题都会动。
+              Builder(builder: (_) {
+                final b = Leaderboard.localNow(real: LeaderSync.cached);
+                return Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColor.accentSoft,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text('第 ${b.rank} 名',
+                      style: TextStyle(
+                          fontSize: 10.5, color: AppColor.accent)),
+                );
+              }),
             ],
           ),
           const SizedBox(height: 6),
@@ -212,6 +229,8 @@ class _QuizPageState extends State<QuizPage> {
         });
       },
       earlyStopLabel: '先停一下，看看成绩',
+      // v1.20.0：每题判完立刻重算名次——这是「实时」最直接的体感
+      onAnswered: () => setState(() {}),
     );
   }
 

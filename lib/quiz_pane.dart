@@ -71,6 +71,10 @@ class QuizPane extends StatefulWidget {
   /// 至少答几道才允许提前结束
   final int minBeforeStop;
 
+  /// v1.20.0：每判完一道题回调一次， parent 用它即时刷新实时名次。
+  /// 不传就不调——晨间流程等调用点无需改动。
+  final VoidCallback? onAnswered;
+
   /// 面板顶部的附加内容（段位、本轮说明之类）
   final Widget? header;
 
@@ -85,6 +89,7 @@ class QuizPane extends StatefulWidget {
     this.onEarlyStop,
     this.earlyStopLabel = '够了，先这样',
     this.minBeforeStop = 8,
+    this.onAnswered,
     this.header,
     this.onlyRoots,
   });
@@ -287,6 +292,8 @@ class _QuizPaneState extends State<QuizPane> {
           : (TopicTree.instance[q.topicId]?.pathLabel ?? q.kind.label),
       verdict: q.isKnowledge ? (g.correct == true ? 'right' : 'wrong') : 'neutral',
     );
+    // v1.20.0：分数已经落库，通知外层即时重算名次（本地，不等网络）
+    widget.onAnswered?.call();
   }
 
   @override

@@ -18,6 +18,8 @@ import 'profile.dart';
 import 'qbank.dart';
 import 'radar.dart';
 import 'rank.dart';
+import 'score.dart';
+import 'leaderboard.dart';
 
 class RankPage extends StatefulWidget {
   const RankPage({super.key});
@@ -34,10 +36,70 @@ class _RankPageState extends State<RankPage> {
   Map<String, dynamic>? _rival;
   String? _err;
 
+  // v1.20.0：真人 + 内置混排榜
+  List<RankEntry> _real = const [];
+  late LeaderSnapshot _board;
+  bool _pulling = false;
+  bool _online = true;
+
   @override
   void initState() {
     super.initState();
     _profile = Profile.load();
+    Leaderboard.ensureDeviceId();
+    _online = LeaderSync.enabled;
+    // 先用缓存/纯内置把榜撑起来（本地即时，不闪空白），再按节流拉真人。
+    _real = LeaderSync.cached;
+    _board = _makeBoard();
+    if (_online && LeaderSync.dueForPull) _pull(background: true);
+  }
+
+  LeaderSnapshot _makeBoard() => Leaderboard.snapshot(
+        myId: Leaderboard.myId,
+        myNick: Store.s('nick', ''),
+        myTotal: ScoreBook.instance.total,
+        myAnswered: ScoreBook.instance.answered,
+        real: _real,
+        myCity: Store.s('cityName', ''),
+      );
+
+  Future<void> _pull({bool background = false}) async {
+    if (_pulling || !_online) return;
+    setState(() => _pulling = true);
+    final rows = await LeaderSync.pull();
+    if (!mounted) return;
+    setState(() {
+      _pulling = false;
+      if (rows != null) _real = rows;
+      _board = _makeBoard();
+    });
+    if (!background) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(rows == null
+            ? '连不上榜单服务，显示的是上次的结果'
+            : '榜单已刷新 · ${rows.length} 位真人'),
+      ));
+    }
+  }
+
+  Future<void> _uploadNow() async {
+    if (!_online) return;
+    final ok = await LeaderSync.upload();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? '分数已上报，别人能在榜上看到你' : '上报失败，稍后再试'),
+    ));
+  }
+
+  void _toggleOnline(bool v) {
+    setState(() {
+      _online = v;
+      LeaderSync.enabled = v;
+      _real = v ? LeaderSync.cached : const [];
+      _board = _makeBoard();
+    });
+    Store.saveSettings();
+    if (v) _pull(background: true);
   }
 
   @override
@@ -155,6 +217,10 @@ class _RankPageState extends State<RankPage> {
             Text('这张多边形就是你的战力：答对的领域往外长，答错、跳过就往里收。',
                 style: TextStyle(fontSize: 10.5, height: 1.5, color: AppColor.sub)),
 
+            // v1.20.0：实时混合榜——自己的名次本地即时算，真人几小时拉一次
+            const SizedBox(height: 20),
+            _boardCard(),
+
             const SizedBox(height: 18),
             Text('段位阶梯',
                 style: TextStyle(fontSize: 11.5, letterSpacing: 1, color: AppColor.sub)),
@@ -259,6 +325,191 @@ class _RankPageState extends State<RankPage> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _boardCard() {
+    final b = _board;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('晨序榜 · 实时',
+                style: TextStyle(
+                    fontSize: 11.5, letterSpacing: 1, color: AppColor.sub)),
+            const Spacer(),
+            if (_online)
+              TextButton(
+                onPressed: _pulling ? null : () => _pull(),
+                style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 24)),
+                child: Text(_pulling ? '刷新中…' : '刷新真人榜',
+                    style: TextStyle(fontSize: 11, color: AppColor.accent)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: AppColor.glassCard,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColor.glassEdge),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('第 ${b.rank} 名',
+                      style: const TextStyle(
+                          fontSize: 30, height: 1.1, fontWeight: FontWeight.w300)),
+                  const SizedBox(width: 12),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 5),
+                    child: Text('超过 ${b.surpassed} 人 · 共 ${b.playerCount} 人',
+                        style:
+                            TextStyle(fontSize: 11.5, color: AppColor.sub)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(b.chaseLine,
+                  style: TextStyle(fontSize: 12, color: AppColor.accent)),
+              const SizedBox(height: 16),
+              // 前几名 + 自己附近，避免整榜太长
+              for (final e in _boardRows(b)) _boardRow(e),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(Icons.people_alt_outlined,
+                      size: 13, color: AppColor.sub),
+                  const SizedBox(width: 5),
+                  Text('${b.realCount} 位真人 · ${b.builtInCount} 位内置对手',
+                      style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '内置对手是 App 里的虚拟角色（分数跟着你走，前面永远有人可追），'
+                '不冒充真人。真人分数由本人匿名上报，设备 ID 区分，不收手机号邮箱。',
+                style: TextStyle(fontSize: 10, height: 1.6, color: AppColor.sub),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Switch(
+              value: _online,
+              onChanged: _toggleOnline,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                _online ? '参与真人榜（上报分数，几小时刷新）' : '不上报分数，只用内置对手',
+                style: TextStyle(fontSize: 11, color: AppColor.sub),
+              ),
+            ),
+            if (_online)
+              TextButton(
+                onPressed: _uploadNow,
+                style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(0, 28)),
+                child: Text('上报分数',
+                    style: TextStyle(fontSize: 11, color: AppColor.accent)),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// 榜单只显示：前三名 + 自己前后各两名，避免一屏塞满。
+  List<RankEntry> _boardRows(LeaderSnapshot b) {
+    final idx = b.myIndex;
+    if (idx < 0) return b.rows.take(3).toList();
+    final keep = <int>{0, 1, 2};
+    for (var i = idx - 2; i <= idx + 2; i++) {
+      if (i >= 0 && i < b.rows.length) keep.add(i);
+    }
+    final sorted = keep.toList()..sort();
+    final out = <RankEntry>[];
+    var last = -1;
+    for (final i in sorted) {
+      if (last >= 0 && i - last > 1) {
+        out.add(RankEntry(
+            id: '__gap_$i', nick: '⋯', total: 0, answered: 0, builtIn: true));
+      }
+      out.add(b.rows[i]);
+      last = i;
+    }
+    return out;
+  }
+
+  Widget _boardRow(RankEntry e) {
+    if (e.nick == '⋯') {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Text('   ⋯', style: TextStyle(fontSize: 11, color: AppColor.sub)),
+      );
+    }
+    final me = e.id == Leaderboard.myId;
+    final rank = _board.rows.indexWhere((x) => x.id == e.id) + 1;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: me ? AppColor.accentSoft : AppColor.card,
+        borderRadius: BorderRadius.circular(12),
+        border:
+            Border.all(color: me ? AppColor.accent : AppColor.line, width: me ? 1 : 0.5),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 22,
+            child: Text('$rank',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: me ? AppColor.accent : AppColor.sub)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                Text(e.nick,
+                    style: TextStyle(
+                        fontSize: 12.5,
+                        color: me ? AppColor.accent : null,
+                        fontWeight: me ? FontWeight.w500 : FontWeight.normal)),
+                const SizedBox(width: 6),
+                if (e.builtIn)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: AppColor.glassPanel,
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(color: AppColor.panelLine, width: 0.5),
+                    ),
+                    child: Text('内置',
+                        style: TextStyle(fontSize: 9, color: AppColor.sub)),
+                  ),
+              ],
+            ),
+          ),
+          Text('${e.total} 分',
+              style: TextStyle(
+                  fontSize: 12.5,
+                  color: me ? AppColor.accent : null,
+                  fontWeight: me ? FontWeight.w500 : FontWeight.normal)),
+        ],
       ),
     );
   }
@@ -434,5 +685,7 @@ class _RankPageState extends State<RankPage> {
 String rankSummaryLine() {
   final p = Profile.load();
   final n = p.answered.length;
-  return '${Rank.tierOf(n).name} · 已答 $n 道';
+  // v1.20.0：榜单是本地即时算的，所以「我的」页这行也能当场显示名次。
+  final b = Leaderboard.localNow(real: LeaderSync.cached);
+  return '第 ${b.rank} 名 · 超过 ${b.surpassed} 人 · ${Rank.tierOf(n).name}';
 }
