@@ -537,14 +537,29 @@ class _RankPageState extends State<RankPage> {
       out.add(b.rows[i]);
       last = i;
     }
+    // 末尾还剩人时也留一行「还有 N 人」，否则榜单看起来就到这里为止了，
+    // 明明还有排名在自己后面的人。
+    final rest = b.rows.length - 1 - last;
+    if (rest > 0) {
+      out.add(RankEntry(
+          id: '__gap_end',
+          nick: '⋯',
+          total: 0,
+          answered: 0,
+          builtIn: true,
+          city: '$rest'));
+    }
     return out;
   }
 
   Widget _boardRow(RankEntry e) {
     if (e.nick == '⋯') {
+      // city 里塞的是「还剩几个人」，末尾那一行用得上
+      final rest = e.city;
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Text('   ⋯', style: TextStyle(fontSize: 11, color: AppColor.sub)),
+        child: Text(rest.isEmpty ? '   ⋯' : '   ⋯ 还有 $rest 人',
+            style: TextStyle(fontSize: 11, color: AppColor.sub)),
       );
     }
     final me = e.id == Leaderboard.myId;
