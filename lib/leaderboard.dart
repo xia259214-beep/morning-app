@@ -10,7 +10,11 @@
 //     不做手机号/邮箱账号，用户之前拒绝账号的决定继续保留。
 //   · 内置对手的分数锚定在你自己的分数附近：永远有人刚好领先你几分，
 //     也永远有人刚被你超过。这是「超过一个人」那份动力的来源，
-//     不联网也在。内置对手在界面上明确标注，不冒充真人。
+//     不联网也在。
+//   · v1.21.0 起，榜上每一行都写明分数是哪几科挣的（科技 +6 · 体育 +3），
+//     只给一个总分看不出谁强在哪。用户也要求去掉行尾那个「内置」小标签，
+//     所以改成榜下一行说明：App 自带的陪练角色分数跟着你的水平走，
+//     不冒充真人。标签去掉，话不说谎。
 //
 // 真人 : 内置 = 1 : 1。没有真人时给 8 个内置对手，冷启动榜也不空。
 // ============================================================================
@@ -20,9 +24,10 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'core.dart';
+import 'profile.dart';
 import 'score.dart';
 
-/// 榜单里的一行。[builtIn] 为 true 表示这是本机内置的虚拟对手，不是真人。
+/// 榜单里的一行。[builtIn] 为 true 表示这是本机自带的陪练角色，不是真人。
 class RankEntry {
   final String id;
   final String nick;
@@ -31,6 +36,10 @@ class RankEntry {
   final bool builtIn;
   final String city;
 
+  /// 各科得分（科技/体育/文化…），v1.21.0 起才有。
+  /// 空表示这个人只报了总分——老版本上报的行、或者还没答过题。
+  final Map<String, int> axes;
+
   const RankEntry({
     required this.id,
     required this.nick,
@@ -38,7 +47,14 @@ class RankEntry {
     required this.answered,
     this.builtIn = false,
     this.city = '',
+    this.axes = const {},
   });
+
+  /// 分科加起来多少分
+  int get axisSum => axes.values.fold(0, (a, b) => a + b);
+
+  /// 这一版之前的总分，没分科。绑在总分上，不硬拆成十份。
+  int get legacy => total - axisSum;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -47,6 +63,7 @@ class RankEntry {
         'answered': answered,
         'builtIn': builtIn,
         'city': city,
+        if (axes.isNotEmpty) 'axes': axes,
       };
 
   factory RankEntry.fromJson(Map<String, dynamic> m) => RankEntry(
@@ -56,7 +73,18 @@ class RankEntry {
         answered: (m['answered'] is num) ? (m['answered'] as num).round() : 0,
         builtIn: m['builtIn'] == true,
         city: (m['city'] ?? '').toString(),
+        axes: _parseAxes(m['axes']),
       );
+}
+
+/// 把云端/缓存里那一坨 JSON 收成 {科目: 分数}，脏数据直接丢掉。
+Map<String, int> _parseAxes(Object? raw) {
+  if (raw is! Map) return const {};
+  final out = <String, int>{};
+  raw.forEach((k, v) {
+    if (v is num && v != 0) out['$k'] = v.toInt();
+  });
+  return out;
 }
 
 /// 名次结果：一屏要用的东西全在这里，页面不需要自己再算一遍。
@@ -166,14 +194,48 @@ class Leaderboard {
       final raw = myTotal + _offsetAt(i);
       final total = raw.clamp(-100000, 100000);
       return RankEntry(
-        id: '$builtInPrefix$_nickAt$i',
+        id: '$builtInPrefix${_nickAt(i)}$i',
         nick: _nickAt(i),
         total: total,
         // 内置对手的答题数跟着分数走，看起来才像真人
         answered: (myAnswered + _offsetAt(i) * 3).clamp(0, 1000000),
         builtIn: true,
+        axes: splitTotal(_nickAt(i), total),
       );
     });
+  }
+
+  /// 把一个总分摊到几科上，加起来正好等于这个总分。
+  ///
+  /// 榜上每一行都要能对上账：几科相加 = 总分，差一分都会让人怀疑
+  /// 整张榜是编的。所以这里用固定权重（5:3:2）+ 余数补最后一科，
+  /// 不走浮点分摊。科目按昵称做种子挑——同一行每次刷新挑的还是那几科，
+  /// 不会一刷新就换一批。
+  static Map<String, int> splitTotal(String nick, int total) {
+    if (total == 0) return const {};
+    final abs = total.abs();
+    final rnd = math.Random(_seedOf(nick));
+    final pool = <String>[...kAxes]..shuffle(rnd);
+    final n = abs < 4 ? math.min(2, abs) : 3;
+    final picks = pool.take(n).toList();
+    final fr = n == 2 ? const <double>[0.6, 0.4] : const <double>[0.5, 0.3, 0.2];
+    final sign = total < 0 ? -1 : 1;
+    final out = <String, int>{};
+    var used = 0;
+    for (var i = 0; i < n; i++) {
+      final part = i == n - 1 ? abs - used : math.max(1, (abs * fr[i]).round());
+      out[picks[i]] = part * sign;
+      used += part;
+    }
+    return out;
+  }
+
+  static int _seedOf(String s) {
+    var h = 7;
+    for (final u in s.codeUnits) {
+      h = (h * 31 + u) & 0x7FFFFFFF;
+    }
+    return h;
   }
 
   /// 真人榜清洗：去掉自己、去重、夹到合理范围、最多 50 人。
@@ -189,6 +251,7 @@ class Leaderboard {
         total: e.total.clamp(-100000, 100000),
         answered: e.answered.clamp(0, 1000000),
         city: e.city,
+        axes: e.axes,
       ));
     }
     out.sort((a, b) => a.total.compareTo(b.total));
@@ -204,6 +267,7 @@ class Leaderboard {
     required int myAnswered,
     required List<RankEntry> real,
     String myCity = '',
+    Map<String, int> myAxes = const {},
   }) {
     final reals = cleanReal(real, myId);
     // 真人有几个就配几个内置对手；一个真人都没有时给 8 个，冷启动榜不空。
@@ -220,6 +284,7 @@ class Leaderboard {
       total: myTotal.clamp(-100000, 100000),
       answered: myAnswered.clamp(0, 1000000),
       city: myCity,
+      axes: myAxes,
     );
 
     final rows = <RankEntry>[...reals, ...built, me];
@@ -274,6 +339,7 @@ class Leaderboard {
       myAnswered: s.answered,
       real: real,
       myCity: city,
+      myAxes: s.byAxis,
     );
   }
 }
@@ -362,6 +428,9 @@ class LeaderSync {
         'wrong_cnt': s.wrong.clamp(0, 1000000),
         'answered': s.answered.clamp(0, 1000000),
         'city': Store.s('cityName', ''),
+        // 各科得分（v1.21.0）。榜上那一行要显示「科技 +6 · 体育 +3」，
+        // 就得把分科也一起报上来；空对象表示只报总分。
+        'axes': s.byAxis,
         'app_version': kAppVersion,
       },
     ]);
@@ -397,7 +466,7 @@ class LeaderSync {
     try {
       client = _client(timeout);
       final uri = Uri.parse(
-        '$endpoint$_path?select=device_id,nick,total,right_cnt,wrong_cnt,answered,city,updated_at&order=total.desc&limit=50',
+        '$endpoint$_path?select=device_id,nick,total,right_cnt,wrong_cnt,answered,city,axes,updated_at&order=total.desc&limit=50',
       );
       final req = await client.getUrl(uri).timeout(timeout);
       _auth(req);
@@ -418,6 +487,7 @@ class LeaderSync {
                   ? (q['answered'] as num).round()
                   : 0,
               city: (q['city'] ?? '').toString(),
+              axes: _parseAxes(q['axes']),
             );
           })
           .where((e) => e.id.isNotEmpty)

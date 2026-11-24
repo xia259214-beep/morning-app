@@ -260,13 +260,15 @@ class _QuizPaneState extends State<QuizPane> {
     // 总分：答对 +1、答错 −1，偏好题不计分（口径见 score.dart）。
     // 多选「没选全」按答错处理——没答对就是没答对，不给半分的灰色地带，
     // 否则「+1 / −1」这条规则就没法向用户解释清楚。
+    // 顺手记在题目的领域上（科技/体育/文化…），榜上那一行才说得清
+    // 「这几分是哪一科挣的」。
     if (q.kind == QKind.pref) {
       ScoreBook.instance.recordPref().save();
     } else if (g.correct == true) {
-      ScoreBook.instance.record(correct: true).save();
+      ScoreBook.instance.record(correct: true, axis: q.axis).save();
       _points += ScoreBook.gainRight;
     } else {
-      ScoreBook.instance.record(correct: false).save();
+      ScoreBook.instance.record(correct: false, axis: q.axis).save();
       _points -= ScoreBook.lossWrong;
     }
 

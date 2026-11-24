@@ -155,6 +155,68 @@ void main() {
   test('缓存坏了当没数据，不让榜单页崩', () {
     expect(LeaderboardSnapshotCacheProbe.brokenReturnsEmpty(), isTrue);
   });
+
+  // ---- v1.21.0：榜上每一行都要说清分数是哪几科挣的 ----
+
+  test('分科明细加起来正好等于总分，正负都算', () {
+    for (final t in <int>[-40, -7, -1, 0, 1, 3, 4, 9, 47, 300]) {
+      final axes = Leaderboard.splitTotal('阿泽', t);
+      final sum = axes.values.fold(0, (a, b) => a + b);
+      expect(sum, t, reason: '总分 $t 摊出来的分科必须对得上账');
+      expect(axes.values.every((v) => v != 0), isTrue, reason: '别摆 0 分的科目');
+    }
+  });
+
+  test('同一行每次刷新分科不变；不同人的科目组合不一样', () {
+    final a1 = Leaderboard.splitTotal('小满', 100);
+    final a2 = Leaderboard.splitTotal('小满', 100);
+    expect(a1, a2, reason: '刷新一次换一批科目，看着就像现编的');
+
+    final combos = <String>{};
+    for (final n in kBuiltInNicks) {
+      combos.add((Leaderboard.splitTotal(n, 100).keys.toList()..sort()).join(','));
+    }
+    expect(combos.length, greaterThan(1), reason: '八个人不该都是同样三科');
+  });
+
+  test('陪练角色的行都带分科，且总分对得上', () {
+    final rows = Leaderboard.builtIns(myTotal: 42, myAnswered: 20);
+    for (final e in rows) {
+      expect(e.axes, isNotEmpty);
+      expect(e.axisSum, e.total);
+      expect(e.legacy, 0, reason: '陪练没有往期账');
+    }
+  });
+
+  test('自己那一行带自己的分科', () {
+    final s = Leaderboard.snapshot(
+      myId: myId,
+      myNick: '我',
+      myTotal: 9,
+      myAnswered: 12,
+      myAxes: const {'科技': 6, '体育': 3},
+      real: const [],
+    );
+    final me = s.rows.firstWhere((e) => e.id == myId);
+    expect(me.axes['科技'], 6);
+    expect(me.axisSum, me.total);
+    expect(me.legacy, 0);
+  });
+
+  test('只报了总分的真人：分科为空，多出来的算往期', () {
+    final s = Leaderboard.snapshot(
+      myId: myId,
+      myNick: '我',
+      myTotal: 0,
+      myAnswered: 0,
+      real: <RankEntry>[
+        RankEntry(id: 'real_old_0001', nick: '老版本', total: 12, answered: 12),
+      ],
+    );
+    final old = s.rows.firstWhere((e) => e.nick == '老版本');
+    expect(old.axes, isEmpty);
+    expect(old.legacy, 12, reason: '没分科的分要认成往期，不能凭空拆开');
+  });
 }
 
 /// 只测「坏 JSON 不当数据」这一条，不碰真实 Store 写盘

@@ -60,9 +60,58 @@ void main() {
   });
 
   test('合并两本账时取答得多的那份，不相加', () {
-    const a = ScoreBook(right: 10, wrong: 2);
-    const b = ScoreBook(right: 3, wrong: 0);
+    final a = ScoreBook(right: 10, wrong: 2);
+    final b = ScoreBook(right: 3, wrong: 0);
     expect(ScoreBook.pickRicher(a, b).total, 8);
     expect(ScoreBook.pickRicher(b, a).total, 8);
+  });
+
+  test('分科记账：各科净分之和 = 总分', () {
+    var s = ScoreBook.zero.record(correct: true, axis: '科技');
+    s = s.record(correct: true, axis: '科技');
+    s = s.record(correct: false, axis: '体育');
+    s = s.record(correct: true, axis: '文化');
+
+    expect(s.byAxis['科技'], 2);
+    expect(s.byAxis['体育'], -1);
+    expect(s.byAxis['文化'], 1);
+    expect(s.axisSum, s.total, reason: '分科加起来必须等于总分，榜上才敢摆出来');
+    expect(s.legacy, 0);
+  });
+
+  test('一科被抵成 0 分就不占一行', () {
+    final s = ScoreBook.zero
+        .record(correct: true, axis: '健康')
+        .record(correct: false, axis: '健康');
+    expect(s.byAxis.containsKey('健康'), isFalse);
+    expect(s.total, 0);
+  });
+
+  test('不知道科目时只记总分，算成「往期」', () {
+    final s = ScoreBook.zero.record(correct: true);
+    expect(s.total, 1);
+    expect(s.byAxis, isEmpty);
+    expect(s.legacy, 1, reason: '没分科的分要能单独认出来');
+  });
+
+  test('分科能存能读', () {
+    Store.settings = {
+      'score': '{"right":3,"wrong":0,"skipped":0,"pref":0,"axes":{"科技":2,"体育":1}}',
+    };
+    final s = ScoreBook.load();
+    expect(s.byAxis['科技'], 2);
+    expect(s.byAxis['体育'], 1);
+    expect(s.axisSum, s.total);
+    expect(s.legacy, 0);
+  });
+
+  test('旧格式（没有 axes）读进来当往期，不报错', () {
+    Store.settings = {
+      'score': '{"right":5,"wrong":2,"skipped":1,"pref":0,"v":1}',
+    };
+    final s = ScoreBook.load();
+    expect(s.total, 3);
+    expect(s.byAxis, isEmpty);
+    expect(s.legacy, 3);
   });
 }

@@ -14,6 +14,9 @@ import 'core.dart';
 import 'profile.dart';
 
 /// 一张十边形战力图。[values] 与 [rival] 都是 0~1，顺序按 kAxes。
+///
+/// [grades] 给每个角配一个字母等级（A~F，见 grade.dart）。给了就把角标画成
+/// 两行：科目名 + 字母。用户看这张图要的不是「63 分」，是「这科什么档」。
 class PowerRadar extends StatelessWidget {
   final List<double> values;
   final List<double>? rival;
@@ -22,12 +25,16 @@ class PowerRadar extends StatelessWidget {
   /// 角标文字：小尺寸（段位阶梯那种）关掉，只留多边形
   final bool showLabels;
 
+  /// 每个角的等级字母，顺序同 kAxes；null 表示只画科目名
+  final List<String>? grades;
+
   const PowerRadar({
     super.key,
     required this.values,
     this.rival,
     this.size = 190,
     this.showLabels = true,
+    this.grades,
   });
 
   @override
@@ -40,6 +47,7 @@ class PowerRadar extends StatelessWidget {
           values: values,
           rival: rival,
           showLabels: showLabels,
+          grades: grades,
           accent: AppColor.accent,
           ink: AppColor.ink,
           sub: AppColor.sub,
@@ -55,6 +63,7 @@ class _RadarPainter extends CustomPainter {
   final List<double> values;
   final List<double>? rival;
   final bool showLabels;
+  final List<String>? grades;
   final Color accent;
   final Color ink;
   final Color sub;
@@ -65,6 +74,7 @@ class _RadarPainter extends CustomPainter {
     required this.values,
     required this.rival,
     required this.showLabels,
+    this.grades,
     required this.accent,
     required this.ink,
     required this.sub,
@@ -82,7 +92,8 @@ class _RadarPainter extends CustomPainter {
 
     final cx = size.width / 2;
     final cy = size.height / 2;
-    final pad = showLabels ? 30.0 : 10.0;
+    // 带等级字母时角标是两行，留的边要多一点，别贴着画布边
+    final pad = showLabels ? (grades == null ? 30.0 : 40.0) : 10.0;
     final r = math.min(cx, cy) - pad;
     if (r <= 4) return;
 
@@ -175,23 +186,35 @@ class _RadarPainter extends CustomPainter {
       );
     }
 
-    // 5) 角标
+    // 5) 角标：科目名 +（可选）字母等级
     if (showLabels) {
-      final style = TextStyle(
-        fontSize: 9.5,
-        color: sub,
-        height: 1,
-      );
       for (var i = 0; i < n; i++) {
         final a = angle(i);
-        final lr = r + 17;
+        final lr = r + 15;
         final lx = cx + lr * math.cos(a);
         final ly = cy + lr * math.sin(a);
         final tx = (lx - cx).abs() < 4
             ? TextAnchor.middle
             : (lx > cx ? TextAnchor.start : TextAnchor.end);
+        final g = (grades != null && i < grades!.length) ? grades![i] : null;
+        final span = TextSpan(children: [
+          TextSpan(
+            text: kAxes[i],
+            style: TextStyle(fontSize: 9.5, color: sub, height: 1.1),
+          ),
+          if (g != null)
+            TextSpan(
+              text: '\n$g',
+              style: TextStyle(
+                fontSize: 11,
+                height: 1.25,
+                fontWeight: FontWeight.w600,
+                color: accent,
+              ),
+            ),
+        ]);
         final tp = TextPainter(
-          text: TextSpan(text: kAxes[i], style: style),
+          text: span,
           textAlign: tx == TextAnchor.middle
               ? TextAlign.center
               : (tx == TextAnchor.start ? TextAlign.left : TextAlign.right),
@@ -213,6 +236,7 @@ class _RadarPainter extends CustomPainter {
       old.values != values ||
       old.rival != rival ||
       old.showLabels != showLabels ||
+      old.grades != grades ||
       old.accent != accent ||
       old.ink != ink;
 }

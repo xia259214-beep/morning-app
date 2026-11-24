@@ -1384,6 +1384,26 @@ class _ProfilePageState extends State<ProfilePage> {
               const SizedBox(height: 6),
               Text('分数可以是负的——答得比错得少，账就该是负的，不替你抹平。',
                   style: TextStyle(fontSize: 10.5, height: 1.6, color: AppColor.sub)),
+              if (s.byAxis.isNotEmpty || s.legacy != 0) ...[
+                const SizedBox(height: 12),
+                Text('这 ${s.total} 分是哪几科挣的',
+                    style: TextStyle(fontSize: 11, color: AppColor.sub)),
+                const SizedBox(height: 7),
+                Wrap(
+                  spacing: 14,
+                  runSpacing: 5,
+                  children: [
+                    for (final e in (s.byAxis.entries.toList()
+                          ..sort((a, b) => b.value.abs().compareTo(a.value.abs()))))
+                      _axisScore(e.key, e.value),
+                    // 旧版本的总分没分科，单独留着，不硬拆
+                    if (s.legacy != 0) _axisScore('往期', s.legacy),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text('「往期」是这一版之前的总分，当时没分科记账。',
+                    style: TextStyle(fontSize: 10, height: 1.6, color: AppColor.sub)),
+              ],
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerRight,
@@ -1398,8 +1418,21 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _scoreLine(String label, String value, String note) => Padding(
-        padding: const EdgeInsets.only(bottom: 9),
+  /// 一科一行小字：「科技 +6」
+  Widget _axisScore(String name, int v) => Text.rich(TextSpan(children: [
+        TextSpan(
+            text: '$name ',
+            style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
+        TextSpan(
+          text: v > 0 ? '+$v' : '−${v.abs()}',
+          style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w500,
+              color: v > 0 ? AppColor.ink : AppColor.sub),
+        ),
+      ]));
+
+  Widget _scoreLine(String label, String value, String note) => Padding(        padding: const EdgeInsets.only(bottom: 9),
         child: Row(
           children: [
             SizedBox(

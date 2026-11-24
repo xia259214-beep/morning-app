@@ -13,9 +13,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'core.dart';
+import 'grade.dart';
 import 'power.dart';
 import 'profile.dart';
-import 'qbank.dart';
 import 'radar.dart';
 import 'rank.dart';
 import 'score.dart';
@@ -59,6 +59,7 @@ class _RankPageState extends State<RankPage> {
         myNick: Store.s('nick', ''),
         myTotal: ScoreBook.instance.total,
         myAnswered: ScoreBook.instance.answered,
+        myAxes: ScoreBook.instance.byAxis,
         real: _real,
         myCity: Store.s('cityName', ''),
       );
@@ -154,68 +155,91 @@ class _RankPageState extends State<RankPage> {
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
                   icon: const Icon(Icons.arrow_back_ios_new, size: 18),
-                  color: AppColor.sub,
+                  color: AppColor.bgSub,
                 ),
-                const Text('晨序榜', style: TextStyle(fontSize: 17)),
+                // 这一行画在页面背景上（不是卡片里），得用背景字色，
+                // 否则深色主题下标题几乎看不见。
+                Text('晨序榜',
+                    style: TextStyle(fontSize: 17, color: AppColor.bgInk)),
                 const Spacer(),
               ],
             ),
             const SizedBox(height: 6),
 
-            // 我的段位 + 战力图（左边段位，右边十边形）
+            // 我的段位 + 战力图（上：段位与综合等级；下：十维等级）
             Container(
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
               decoration: BoxDecoration(
                 color: AppColor.glassCard,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: AppColor.glassEdge),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('我的段位',
-                            style: TextStyle(fontSize: 11.5, color: AppColor.sub)),
-                        const SizedBox(height: 8),
-                        Text(tier.name,
-                            style: const TextStyle(
-                                fontSize: 30, height: 1.1, fontWeight: FontWeight.w300)),
-                        const SizedBox(height: 4),
-                        Text('已答 $_answered 道 · 没有上限',
-                            style: TextStyle(fontSize: 11.5, color: AppColor.sub)),
-                        const SizedBox(height: 6),
-                        Text(tier.note,
-                            style: TextStyle(fontSize: 11, color: AppColor.sub)),
-                        const SizedBox(height: 12),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(3),
-                          child: LinearProgressIndicator(
-                            value: Rank.progress(_answered),
-                            minHeight: 5,
-                            backgroundColor: AppColor.line,
-                            valueColor: AlwaysStoppedAnimation<Color>(AppColor.accent),
-                          ),
-                        ),
-                        const SizedBox(height: 7),
-                        Text(
-                          '再答 ${Rank.toNext(_answered)} 道到「${Rank.nextOf(_answered).name}」',
-                          style: TextStyle(fontSize: 10.5, color: AppColor.sub),
-                        ),
-                      ],
+                  Text('我的段位',
+                      style: TextStyle(fontSize: 11.5, color: AppColor.sub)),
+                  const SizedBox(height: 8),
+                  // 段位名和综合等级挨着放：等级说的就是这一段位的整体水平，
+                  // 分到卡片两头会让人以为「综合」是另一个东西。
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(tier.name,
+                          style: const TextStyle(
+                              fontSize: 30,
+                              height: 1.1,
+                              fontWeight: FontWeight.w300)),
+                      const SizedBox(width: 12),
+                      _overallGradeBadge(),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text('已答 $_answered 道 · 没有上限',
+                      style: TextStyle(fontSize: 11.5, color: AppColor.sub)),
+                  const SizedBox(height: 6),
+                  Text(tier.note,
+                      style: TextStyle(fontSize: 11, color: AppColor.sub)),
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: LinearProgressIndicator(
+                      value: Rank.progress(_answered),
+                      minHeight: 5,
+                      backgroundColor: AppColor.line,
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColor.accent),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  PowerRadar(values: PowerChart.instance.normalized, size: 132),
+                  const SizedBox(height: 7),
+                  Text(
+                    '再答 ${Rank.toNext(_answered)} 道到「${Rank.nextOf(_answered).name}」',
+                    style: TextStyle(fontSize: 10.5, color: AppColor.sub),
+                  ),
+                  const SizedBox(height: 12),
+                  // v1.21.0：十维各配一个 A~F 等级，画在角上。
+                  // 尺寸跟着卡片宽度走——手机上一只手能看全，折叠屏摊开也不空。
+                  LayoutBuilder(builder: (ctx, c) {
+                    final side =
+                        (c.maxWidth * 0.46).clamp(186.0, 300.0).toDouble();
+                    return Center(
+                      child: PowerRadar(
+                        values: PowerChart.instance.normalized,
+                        grades: AxisGrade.axesOf(PowerChart.instance),
+                        size: side,
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 6),
+                  Text('十个角就是十个领域：答对的往外长、答错的往里收。',
+                      style: TextStyle(fontSize: 10.5, height: 1.5, color: AppColor.sub)),
+                  const SizedBox(height: 2),
+                  Text('等级按 A–F 记：A 最强，C 是「还没看清」，F 是这块还空着。',
+                      style: TextStyle(fontSize: 10.5, height: 1.5, color: AppColor.sub)),
+                  const SizedBox(height: 10),
+                  _axisGradeLine(),
                 ],
               ),
             ),
-
-            const SizedBox(height: 8),
-            Text('这张多边形就是你的战力：答对的领域往外长，答错、跳过就往里收。',
-                style: TextStyle(fontSize: 10.5, height: 1.5, color: AppColor.sub)),
 
             // v1.20.0：实时混合榜——自己的名次本地即时算，真人几小时拉一次
             const SizedBox(height: 20),
@@ -223,18 +247,18 @@ class _RankPageState extends State<RankPage> {
 
             const SizedBox(height: 18),
             Text('段位阶梯',
-                style: TextStyle(fontSize: 11.5, letterSpacing: 1, color: AppColor.sub)),
+                style: TextStyle(fontSize: 11.5, letterSpacing: 1, color: AppColor.bgSub)),
             const SizedBox(height: 10),
             for (final t in Rank.ladderRows(_answered).reversed) _tierRow(t),
 
             const SizedBox(height: 20),
             Text('跟朋友对拼',
-                style: TextStyle(fontSize: 11.5, letterSpacing: 1, color: AppColor.sub)),
+                style: TextStyle(fontSize: 11.5, letterSpacing: 1, color: AppColor.bgSub)),
             const SizedBox(height: 6),
             Text(
               '答题记录只存在这台手机里，不上传。想比，就把下面这段码发给朋友，'
               '让他把码贴进来；或者他把他的码发给你。谁的数据都不离开自己的手机。',
-              style: TextStyle(fontSize: 11, height: 1.6, color: AppColor.sub),
+              style: TextStyle(fontSize: 11, height: 1.6, color: AppColor.bgSub),
             ),
             const SizedBox(height: 12),
 
@@ -303,7 +327,8 @@ class _RankPageState extends State<RankPage> {
             ),
             if (_err != null) ...[
               const SizedBox(height: 8),
-              Text(_err!, style: TextStyle(fontSize: 11.5, color: AppColor.accent)),
+              Text(_err!,
+                  style: TextStyle(fontSize: 11.5, color: AppColor.bgAccent)),
             ],
             const SizedBox(height: 10),
             SizedBox(
@@ -329,6 +354,60 @@ class _RankPageState extends State<RankPage> {
     );
   }
 
+  /// 综合等级：十维取平均。紧挨着段位名，一眼看到「整体哪一档」。
+  Widget _overallGradeBadge() {
+    final g = AxisGrade.overallOf(PowerChart.instance);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColor.accentSoft,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: AppColor.accent),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(g,
+              style: TextStyle(
+                  fontSize: 17,
+                  height: 1.2,
+                  fontWeight: FontWeight.w600,
+                  color: AppColor.accent)),
+          const SizedBox(width: 4),
+          Text('综合',
+              style: TextStyle(fontSize: 9, height: 1.2, color: AppColor.sub)),
+        ],
+      ),
+    );
+  }
+
+  /// 十科各自的字母，两个一行排下来。雷达图角上的字太小，
+  /// 这一块是给「想数一遍」的人用的。
+  Widget _axisGradeLine() {
+    final p = PowerChart.instance;
+    return Wrap(
+      spacing: 12,
+      runSpacing: 4,
+      children: [
+        for (final a in kAxes)
+          Text.rich(
+            TextSpan(children: [
+              TextSpan(
+                  text: a,
+                  style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
+              TextSpan(
+                  text: ' ${AxisGrade.of(p.of(a))}',
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColor.accent)),
+            ]),
+          ),
+      ],
+    );
+  }
+
   Widget _boardCard() {
     final b = _board;
     return Column(
@@ -338,7 +417,7 @@ class _RankPageState extends State<RankPage> {
           children: [
             Text('晨序榜 · 实时',
                 style: TextStyle(
-                    fontSize: 11.5, letterSpacing: 1, color: AppColor.sub)),
+                    fontSize: 11.5, letterSpacing: 1, color: AppColor.bgSub)),
             const Spacer(),
             if (_online)
               TextButton(
@@ -389,14 +468,21 @@ class _RankPageState extends State<RankPage> {
                   Icon(Icons.people_alt_outlined,
                       size: 13, color: AppColor.sub),
                   const SizedBox(width: 5),
-                  Text('${b.realCount} 位真人 · ${b.builtInCount} 位内置对手',
+                  Text('${b.realCount} 位真人 · ${b.builtInCount} 位陪练角色',
                       style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
                 ],
               ),
               const SizedBox(height: 8),
               Text(
-                '内置对手是 App 里的虚拟角色（分数跟着你走，前面永远有人可追），'
-                '不冒充真人。真人分数由本人匿名上报，设备 ID 区分，不收手机号邮箱。',
+                '每行下面的科目，是这几分从哪来：答对一科 +1、答错 −1，'
+                '按题目的领域记。「往期」是这一版之前的总分，当时没分科记账，'
+                '单独留着，不硬拆成十份。',
+                style: TextStyle(fontSize: 10, height: 1.6, color: AppColor.sub),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '陪练角色是 App 自带的（分数跟着你的水平走，前面永远有人可追），'
+                '不冒充真人；真人分数由本人匿名上报，设备 ID 区分，不收手机号邮箱。',
                 style: TextStyle(fontSize: 10, height: 1.6, color: AppColor.sub),
               ),
             ],
@@ -413,7 +499,7 @@ class _RankPageState extends State<RankPage> {
             const SizedBox(width: 6),
             Expanded(
               child: Text(
-                _online ? '参与真人榜（上报分数，几小时刷新）' : '不上报分数，只用内置对手',
+                _online ? '参与真人榜（上报分数，几小时刷新）' : '不上报分数，只跟陪练比',
                 style: TextStyle(fontSize: 11, color: AppColor.sub),
               ),
             ),
@@ -463,55 +549,105 @@ class _RankPageState extends State<RankPage> {
     }
     final me = e.id == Leaderboard.myId;
     final rank = _board.rows.indexWhere((x) => x.id == e.id) + 1;
+    var parts = _scoreParts(e, dim: me);
+    // 自己这一行什么都没有时（新装、或分数正好为 0），别留一片空白：
+    // 说一句下一步怎么才有内容，比一个空行有用。
+    if (parts == null && me) {
+      parts = TextSpan(
+        text: '答一题就有分科明细',
+        style: TextStyle(fontSize: 10, color: AppColor.sub),
+      );
+    }
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      padding: const EdgeInsets.fromLTRB(12, 9, 12, 10),
       decoration: BoxDecoration(
         color: me ? AppColor.accentSoft : AppColor.card,
         borderRadius: BorderRadius.circular(12),
         border:
             Border.all(color: me ? AppColor.accent : AppColor.line, width: me ? 1 : 0.5),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 22,
-            child: Text('$rank',
-                style: TextStyle(
-                    fontSize: 12,
-                    color: me ? AppColor.accent : AppColor.sub)),
-          ),
-          Expanded(
-            child: Row(
-              children: [
-                Text(e.nick,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 22,
+                child: Text('$rank',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: me ? AppColor.accent : AppColor.sub)),
+              ),
+              Expanded(
+                child: Text(e.nick,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                         fontSize: 12.5,
                         color: me ? AppColor.accent : null,
                         fontWeight: me ? FontWeight.w500 : FontWeight.normal)),
-                const SizedBox(width: 6),
-                if (e.builtIn)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: AppColor.glassPanel,
-                      borderRadius: BorderRadius.circular(5),
-                      border: Border.all(color: AppColor.panelLine, width: 0.5),
-                    ),
-                    child: Text('内置',
-                        style: TextStyle(fontSize: 9, color: AppColor.sub)),
-                  ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              Text('总分 ${e.total}',
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      color: me ? AppColor.accent : AppColor.ink,
+                      fontWeight: FontWeight.w500)),
+            ],
           ),
-          Text('${e.total} 分',
-              style: TextStyle(
-                  fontSize: 12.5,
-                  color: me ? AppColor.accent : null,
-                  fontWeight: me ? FontWeight.w500 : FontWeight.normal)),
+          // 这几分是哪几科挣的。没有分科数据（老版本上报的行）就不画，
+          // 不拿总分硬拆十份糊弄人。
+          if (parts != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 22, top: 3),
+              child: Text.rich(parts,
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
+            ),
         ],
       ),
     );
+  }
+
+  /// 各科得分 → 一行小字：「科技 +18 · 体育 +12 · 往期 +6」。
+  /// 取绝对值最大的三科，剩下的收成「等 N 科」，行宽才不会炸。
+  /// 返回 null 表示这一行没分科数据。
+  TextSpan? _scoreParts(RankEntry e, {bool dim = false}) {
+    final pairs = e.axes.entries.where((x) => x.value != 0).toList()
+      ..sort((a, b) => b.value.abs().compareTo(a.value.abs()));
+    final spans = <InlineSpan>[];
+    void add(String name, int v) {
+      if (spans.isNotEmpty) {
+        spans.add(TextSpan(
+            text: ' · ', style: TextStyle(fontSize: 10, color: AppColor.sub)));
+      }
+      spans.add(TextSpan(
+          text: '$name ',
+          style: TextStyle(fontSize: 10, color: AppColor.sub)));
+      spans.add(TextSpan(
+        text: v > 0 ? '+$v' : '−${v.abs()}',
+        style: TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w500,
+            color: v > 0
+                ? (dim ? AppColor.accent : AppColor.ink)
+                : AppColor.sub),
+      ));
+    }
+
+    for (final x in pairs.take(3)) {
+      add(x.key, x.value);
+    }
+    if (pairs.length > 3) {
+      spans.add(TextSpan(
+          text: ' 等 ${pairs.length} 科',
+          style: TextStyle(fontSize: 9.5, color: AppColor.sub)));
+    }
+    // 旧版本攒下的总分，没分科，单独标出来，不混进任何一科
+    if (e.legacy != 0) add('往期', e.legacy);
+    if (spans.isEmpty) return null;
+    return TextSpan(children: spans);
   }
 
   Widget _tierRow(RankTier t) {
