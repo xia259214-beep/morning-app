@@ -45,6 +45,13 @@ class LiquidTheme {
   final Color btnTo;
   final Color btnInk;
 
+  /// v1.19.0：卡片上的字色。以前所有液态风格共用纸感主题的 ink/sub，
+  /// 曜石深潭那种中亮暗卡上压着近黑字，户外根本看不清。
+  /// 每套风格自己带一套字色，亮卡用深字、暗卡用浅字。
+  final Color ink;
+  final Color sub;
+  final Color accent;
+
   const LiquidTheme({
     required this.id,
     required this.name,
@@ -59,6 +66,9 @@ class LiquidTheme {
     required this.btnFrom,
     required this.btnTo,
     required this.btnInk,
+    required this.ink,
+    required this.sub,
+    required this.accent,
   });
 }
 
@@ -78,6 +88,9 @@ const List<LiquidTheme> kLiquidThemes = <LiquidTheme>[
     btnFrom: Color(0xFFFCF6EA),
     btnTo: Color(0xFFE4D3B9),
     btnInk: Color(0xFF2F2519),
+    ink: Color(0xFF2F2519),
+    sub: Color(0xFF6A5947),
+    accent: Color(0xFFB0703D),
   ),
   LiquidTheme(
     id: 'aurora',
@@ -93,6 +106,9 @@ const List<LiquidTheme> kLiquidThemes = <LiquidTheme>[
     btnFrom: Color(0xFFEEEAFE),
     btnTo: Color(0xFFC6C0E8),
     btnInk: Color(0xFF1D1A2E),
+    ink: Color(0xFF1D1A2E),
+    sub: Color(0xFF5A5672),
+    accent: Color(0xFF7C67C9),
   ),
   LiquidTheme(
     id: 'obsidian',
@@ -100,14 +116,18 @@ const List<LiquidTheme> kLiquidThemes = <LiquidTheme>[
     note: '深色高级 · 按键像点亮的水面',
     bg: Color(0xFF0C1412),
     orb: Color(0xFF3CCDA5),
-    cardFrom: Color(0xFF465F58),
-    cardTo: Color(0xFF2C403A),
-    edgeA: Color(0xFF2D5F58),
-    edgeB: Color(0xFF7FE0C4),
-    edgeC: Color(0xFF4A8F80),
+    // v1.19.0：卡片整体提亮一档、描边加亮；浅字才压得住，太阳底下也读得出。
+    cardFrom: Color(0xFF4F6D62),
+    cardTo: Color(0xFF2E453D),
+    edgeA: Color(0xFF5FB39C),
+    edgeB: Color(0xFF9DEBD1),
+    edgeC: Color(0xFF59A892),
     btnFrom: Color(0xFFCDF5E6),
     btnTo: Color(0xFF96D7C3),
     btnInk: Color(0xFF153029),
+    ink: Color(0xFFF2FAF6),
+    sub: Color(0xFFB8D8C9),
+    accent: Color(0xFF6FE0B8),
   ),
   LiquidTheme(
     id: 'mint',
@@ -115,14 +135,19 @@ const List<LiquidTheme> kLiquidThemes = <LiquidTheme>[
     note: '青绿通透 · 清爽夏天感',
     bg: Color(0xFF0E1815),
     orb: Color(0xFF82E1B4),
-    cardFrom: Color(0xFFE6F8F0),
-    cardTo: Color(0xFFBEE0D2),
+    // v1.19.0：卡片上下两端拉开亮度，层次更清楚；字改成深墨绿，
+    // 比原来的灰褐 sub 对比度高得多，阳光下不再糊成一块。
+    cardFrom: Color(0xFFF3FBF7),
+    cardTo: Color(0xFFC7E7D8),
     edgeA: Color(0xFFA8E6CF),
     edgeB: Color(0xFFDCEDC1),
     edgeC: Color(0xFF8FD8C0),
     btnFrom: Color(0xFFE6F8F0),
     btnTo: Color(0xFFBEE0D2),
     btnInk: Color(0xFF12312C),
+    ink: Color(0xFF12312C),
+    sub: Color(0xFF3E6B5E),
+    accent: Color(0xFF3E9073),
   ),
 ];
 
@@ -167,6 +192,17 @@ class Liquid {
 
   /// 这套风格的卡片是不是「中亮底 + 浅字」（曜石），其余都是「亮底 + 深字」
   static bool surfaceUsesLightInk(LiquidTheme t) => t.id == 'obsidian';
+
+  /// v1.19.0：液态风格自己的字色 / 强调色。
+  /// AppColor 的 ink、sub、accent 在 Liquid.on 时一律从这里取，
+  /// 这样「曜石暗卡配浅字」「薄荷亮卡配深字」不再取决于用户选的纸感主题。
+  static Color inkOf(LiquidTheme t) => t.ink;
+  static Color subOf(LiquidTheme t) => t.sub;
+  static Color accentOf(LiquidTheme t) => t.accent;
+
+  /// 相对亮度（0 黑 ~ 1 白）。用来给状态栏图标、onInk 选正反色。
+  static double luminance(Color c) =>
+      (0.2126 * c.red + 0.7152 * c.green + 0.0722 * c.blue) / 255;
 }
 
 /// 太阳位置：0~1 的屏幕坐标 + 0~1 的高度（夜里 0）。

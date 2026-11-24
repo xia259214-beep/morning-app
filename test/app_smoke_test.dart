@@ -179,6 +179,36 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('v1.19.0：左右滑动切页与底栏点击保持同步', (tester) async {
+    await boot(tester);
+    final pv = find.byType(PageView);
+    expect(pv, findsOneWidget);
+
+    double currentPage() => tester.widget<PageView>(pv).controller!.page ?? -1;
+    expect(currentPage(), 0.0);
+
+    // 手指往左拖 = 看右边的闹钟页。用慢速拖，快速 drag 带惯性会翻多页。
+    await tester.timedDrag(pv, const Offset(-300, 0), const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+    expect(currentPage(), 1.0, reason: '从首页往右滑没进闹钟页');
+
+    // 往右拖回首页
+    await tester.timedDrag(pv, const Offset(300, 0), const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+    expect(currentPage(), 0.0, reason: '往左滑没回首页');
+
+    // 点底栏直达末页，再滑一次 —— 验证按钮和手势共用同一个 controller
+    await tester.tap(find.byIcon(Icons.person_outline));
+    await tester.pumpAndSettle();
+    expect(currentPage(), 4.0, reason: '点底栏没切页');
+
+    await tester.timedDrag(pv, const Offset(300, 0), const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+    expect(currentPage(), 3.0, reason: '底栏跳页后手势失灵，页码脱节');
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('闹钟编辑页可打开并保存', (tester) async {
     await boot(tester);
     await tester.tap(find.byIcon(Icons.alarm));

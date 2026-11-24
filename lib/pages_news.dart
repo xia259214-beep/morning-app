@@ -425,7 +425,11 @@ class _NewsPageState extends State<NewsPage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              const Text('新闻', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w300)),
+              Text('新闻',
+                  style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w300,
+                      color: AppColor.bgInk)),
               const SizedBox(width: 10),
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),

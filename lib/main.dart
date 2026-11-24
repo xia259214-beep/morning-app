@@ -60,7 +60,9 @@ Future<void> main() async {
 void _applyStatusBar() {
   SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
-    statusBarIconBrightness: AppColor.isDark ? Brightness.light : Brightness.dark,
+    // v1.19.0：液态风格自己带字色，状态栏图标要跟着「实际字色」走，
+    // 不能只看纸感主题。曜石深潭卡是暗的，纸感却可能是暖纸。
+    statusBarIconBrightness: AppColor.textIsLight ? Brightness.light : Brightness.dark,
   ));
 }
 
@@ -107,6 +109,10 @@ class RootShell extends StatefulWidget {
 class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   int _index = 0;
   int _refreshKey = 0;
+
+  /// v1.19.0：以前这里只有 IndexedStack + 底栏按钮，左右滑一点反应都没有。
+  /// 换成 PageView 后，手势切页和点底栏两条路都走同一个 controller。
+  final PageController _pageController = PageController();
 
   @override
   void initState() {
@@ -162,6 +168,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   void dispose() {
     _flowWatch?.cancel();
     _updateWatch?.cancel();
+    _pageController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -268,10 +275,25 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     ];
 
     return Scaffold(
-      body: IndexedStack(index: _index, children: pages),
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (i) => setState(() => _index = i),
+        children: pages,
+      ),
       bottomNavigationBar: _BottomBar(
         index: _index,
-        onTap: (i) => setState(() => _index = i),
+        onTap: (i) {
+          // 点底栏也要走 controller，否则手势滑过去之后 controller 的
+          // 页码和 _index 会脱节，下一次滑动直接从旧页跳。
+          setState(() => _index = i);
+          if (_pageController.hasClients) {
+            _pageController.animateToPage(
+              i,
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.easeOut,
+            );
+          }
+        },
       ),
     );
   }

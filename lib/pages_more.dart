@@ -89,8 +89,11 @@ class _RecordsPageState extends State<RecordsPage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              const Text('记录',
-                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.w300)),
+              Text('记录',
+                  style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w300,
+                      color: AppColor.bgInk)),
               const Spacer(),
               _tabButton('今天', 0),
               const SizedBox(width: 6),
@@ -714,7 +717,7 @@ class _ProfileCard extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12.5,
                 height: 1.7,
-                color: AppColor.isDark ? AppColor.sub : const Color(0xFF4A453D),
+                color: AppColor.softInk,
               )),
           const SizedBox(height: 12),
           // 树上的纹理。
@@ -1075,7 +1078,11 @@ class _ProfilePageState extends State<ProfilePage> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),
         children: [
-          const Text('我的', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w300)),
+          Text('我的',
+              style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w300,
+                  color: AppColor.bgInk)),
           const SizedBox(height: 20),
           Container(
             padding: const EdgeInsets.all(18),
@@ -1323,7 +1330,7 @@ class _ProfilePageState extends State<ProfilePage> {
               style: TextStyle(
                   fontSize: 11.5,
                   height: 1.7,
-                  color: AppColor.isDark ? AppColor.sub : const Color(0xFF6B5A45)),
+                  color: AppColor.softInk),
             ),
           ),
         ],
@@ -1440,7 +1447,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _section(String t) => Padding(
         padding: const EdgeInsets.only(left: 4, bottom: 8),
         child: Text(t,
-            style: TextStyle(fontSize: 11.5, color: AppColor.sub, letterSpacing: 1)),
+            style: TextStyle(fontSize: 11.5, color: AppColor.bgSub, letterSpacing: 1)),
       );
 
   Widget _rowTile(String title, String value, {VoidCallback? onTap}) {

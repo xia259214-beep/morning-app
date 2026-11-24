@@ -9,7 +9,7 @@ import 'glass.dart';
 import 'liquid.dart';
 
 /// App 版本号（与 pubspec.yaml 同步）。展示与崩溃日志都用它，避免写死多处。
-const String kAppVersion = '1.18.0';
+const String kAppVersion = '1.19.0';
 
 // ============================================================================
 // 1. 设计系统（Minimal / 安静 / 温暖）
@@ -142,7 +142,13 @@ class AppColor {
 
   static Color get bg => _pack.bg;
   static Color get card => _pack.card;
-  static Color get ink => _pack.ink;
+
+  /// v1.19.0：液态风格下字色跟着液态主题走，不再用纸感主题的字色。
+  /// 曜石深潭是暗卡配浅字；其余三套是亮卡配深字。
+  static Color get ink {
+    final lt = Liquid.theme;
+    return lt == null ? _pack.ink : Liquid.inkOf(lt);
+  }
 
   // v1.9.0 玻璃态派生色：所有页面原来写死的 `color: AppColor.card` 换成
   // glassCard 后，卡片就自动半透明、能透出底层光斑；描边换成高光色，
@@ -172,16 +178,48 @@ class AppColor {
         ? panel.withOpacity((Glass.style.cardAlpha - 0.06).clamp(0.12, 1.0))
         : panel;
   }
-  static Color get sub => _pack.sub;
+  static Color get sub {
+    final lt = Liquid.theme;
+    return lt == null ? _pack.sub : Liquid.subOf(lt);
+  }
+
   static Color get line => _pack.line;
-  static Color get accent => _pack.accent;
-  static Color get accentSoft => _pack.accentSoft;
+
+  static Color get accent {
+    final lt = Liquid.theme;
+    return lt == null ? _pack.accent : Liquid.accentOf(lt);
+  }
+
+  static Color get accentSoft {
+    final lt = Liquid.theme;
+    return lt == null ? _pack.accentSoft : lt.cardTo.withOpacity(0.55);
+  }
+
   static Color get ok => _pack.ok;
 
+  /// 说明性小字。旧页面（闹钟/我的）写死了比 sub 更深的褐色；
+  /// 液态风格下必须换成该主题的 sub，否则暗卡上还是深字压暗底。
+  static Color get softInk {
+    final lt = Liquid.theme;
+    return lt == null ? const Color(0xFF6B5A45) : Liquid.subOf(lt);
+  }
+
+  /// 直接画在**背景**上的字（页面大标题、分组小标题、说明行），不在卡片里。
+  /// 液态风格四套背景全是深色底，这些字必须恒用浅色；卡片里的字才跟主题走。
+  /// 关掉液态则原样退回纸感主题。
+  static Color get bgInk => Liquid.on ? const Color(0xFFF1F7F4) : _pack.ink;
+  static Color get bgSub => Liquid.on ? const Color(0xFFB9D2C6) : _pack.sub;
+  static Color get bgAccent => Liquid.on ? const Color(0xFF8FE3C1) : _pack.accent;
+
+  /// 当前主文字是不是浅色。状态栏图标、压在 ink 上的字都按它选正反色。
+  static bool get textIsLight {
+    final lt = Liquid.theme;
+    return lt == null ? _pack.dark : Liquid.luminance(Liquid.inkOf(lt)) > 0.5;
+  }
+
   /// 压在 ink 色块上的前景色。
-  /// 浅色主题 ink 是近黑 → 白字；深色主题 ink 是近白 → 必须用深字，
-  /// 否则就是「浅底白字」，换肤之后最典型的一处看不清。
-  static Color get onInk => _pack.dark ? _pack.bg : const Color(0xFFFFFFFF);
+  /// 浅色字配深色字，深色字配白字，避免「浅底白字」。
+  static Color get onInk => textIsLight ? const Color(0xFF10201B) : const Color(0xFFFFFFFF);
 
   /// 浅色纸感面板底色（说明块、占位块用）。深色主题下换成同主题的浅强调底。
   static Color get panel => _pack.dark ? _pack.accentSoft : const Color(0xFFF6F2EA);

@@ -89,20 +89,23 @@ class _GlassPageState extends State<GlassPage> {
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: const Text('界面质感',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-        iconTheme: IconThemeData(color: AppColor.ink),
+        title: Text('界面质感',
+            style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColor.bgInk)),
+        iconTheme: IconThemeData(color: AppColor.bgInk),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 6, 18, 30),
         children: [
           Text('点一下立刻换，不用重启。选完会记住。',
-              style: TextStyle(fontSize: 12.5, color: AppColor.sub, height: 1.6)),
+              style: TextStyle(fontSize: 12.5, color: AppColor.bgSub, height: 1.6)),
           const SizedBox(height: 16),
           _sectionTitle('液态水晶 · 新'),
           const SizedBox(height: 6),
           Text('按钮与卡片有厚度、棱镜描边；背景光晕跟着太阳走，早上东边亮、正午头顶亮、傍晚西边亮。',
-              style: TextStyle(fontSize: 11, height: 1.55, color: AppColor.sub)),
+              style: TextStyle(fontSize: 11, height: 1.55, color: AppColor.bgSub)),
           const SizedBox(height: 10),
           _liquidCard(null),
           for (final t in kLiquidThemes) _liquidCard(t),
@@ -139,7 +142,7 @@ class _GlassPageState extends State<GlassPage> {
         child: Text(t,
             style: TextStyle(
                 fontSize: 12,
-                color: AppColor.accent,
+                color: AppColor.bgAccent,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.6)),
       );

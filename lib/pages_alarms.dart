@@ -33,7 +33,11 @@ class _AlarmsPageState extends State<AlarmsPage> {
         children: [
           Row(
             children: [
-              const Text('闹钟', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w300)),
+              Text('闹钟',
+                  style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w300,
+                      color: AppColor.bgInk)),
               const Spacer(),
               IconButton(
                 onPressed: _add,
@@ -78,7 +82,7 @@ class _AlarmsPageState extends State<AlarmsPage> {
               style: TextStyle(
                   fontSize: 11.5,
                   height: 1.6,
-                  color: AppColor.isDark ? AppColor.sub : const Color(0xFF6B5A45)),
+                  color: AppColor.softInk),
             ),
           ),
         ],
