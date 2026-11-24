@@ -48,10 +48,17 @@ class _RankPageState extends State<RankPage> {
     _profile = Profile.load();
     Leaderboard.ensureDeviceId();
     _online = LeaderSync.enabled;
-    // 先用缓存/纯内置把榜撑起来（本地即时，不闪空白），再按节流拉真人。
+    // 先用缓存/纯内置把榜撑起来（本地即时，不闪空白）。
     _real = LeaderSync.cached;
     _board = _makeBoard();
-    if (_online && LeaderSync.dueForPull) _pull(background: true);
+    // v1.21.2：打开榜单页就先把自己的分数报上去，再拉全榜——
+    // 拉回来的列表里才有刚上过线的自己和别人。以前只有手动点
+    // 「上报分数」才传，两台设备都答了题也互相看不见。
+    if (_online) {
+      LeaderSync.uploadAuto(force: true).then((_) {
+        if (mounted) _pull(background: true);
+      });
+    }
   }
 
   LeaderSnapshot _makeBoard() => Leaderboard.snapshot(
@@ -468,7 +475,12 @@ class _RankPageState extends State<RankPage> {
                   Icon(Icons.people_alt_outlined,
                       size: 13, color: AppColor.sub),
                   const SizedBox(width: 5),
-                  Text('${b.realCount} 位真人 · ${b.builtInCount} 位陪练角色',
+                  // 自己也是一位真人，别把它漏在计数外面——
+                  // 「0 位真人」会让答了题的人以为上报没生效。
+                  Text(
+                      b.realCount == 0
+                          ? '目前榜上就你 1 位真人 · ${b.builtInCount} 位陪练角色'
+                          : '${b.realCount + 1} 位真人（含你） · ${b.builtInCount} 位陪练角色',
                       style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
                 ],
               ),

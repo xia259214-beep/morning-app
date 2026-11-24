@@ -416,12 +416,29 @@ class LeaderSync {
     req.headers.set('x-wb-webapp-access-key', publishableKey);
   }
 
+  /// 自动上报的节流：答题答得密的时候不必每题一发，
+  /// 90 秒内的合并到下一次；打开榜单页用 force 绕过。
+  static DateTime? _lastAutoUpload;
+
+  /// 「只要是人答了题就要显示」——答题后自动上报，不用手动点。
+  /// 失败静默，下次答题再试；返回值只给想等的调用方。
+  static Future<bool> uploadAuto({bool force = false}) async {
+    if (!enabled) return false;
+    if (!force &&
+        _lastAutoUpload != null &&
+        DateTime.now().difference(_lastAutoUpload!) <
+            const Duration(seconds: 90)) {
+      return true;
+    }
+    _lastAutoUpload = DateTime.now();
+    return upload();
+  }
+
   /// 上报自己的分数。用 upsert：同一设备 ID 只更新一行，不会越用越多。
   /// 失败静默（这是激励功能，不该打断答题），由调用方决定是否提示。
   static Future<bool> upload({
     Duration timeout = const Duration(seconds: 8),
-  }) async {
-    if (!enabled) return false;
+  }) async {    if (!enabled) return false;
     final id = Leaderboard.ensureDeviceId();
     final s = ScoreBook.instance;
     final body = jsonEncode([

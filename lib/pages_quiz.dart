@@ -230,7 +230,12 @@ class _QuizPageState extends State<QuizPage> {
       },
       earlyStopLabel: '先停一下，看看成绩',
       // v1.20.0：每题判完立刻重算名次——这是「实时」最直接的体感
-      onAnswered: () => setState(() {}),
+      // v1.21.2：顺手把自己的分数报上去（90 秒节流），不用手动点。
+      // 不等它——上报失败也不打断答题，下次再试。
+      onAnswered: () {
+        setState(() {});
+        LeaderSync.uploadAuto();
+      },
     );
   }
 
