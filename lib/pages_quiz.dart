@@ -109,7 +109,7 @@ class _QuizPageState extends State<QuizPage> {
               // 藏进「我的」里得点两层才看得到，等于没有。
               Text('总分 ',
                   style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
-              Text('${ScoreBook.instance.total}',
+              Text(ScoreBook.fmt(ScoreBook.instance.total),
                   style: const TextStyle(
                       fontSize: 15, fontWeight: FontWeight.w500)),
               const SizedBox(width: 8),
@@ -277,7 +277,7 @@ class _QuizPageState extends State<QuizPage> {
               style: TextStyle(fontSize: 11.5, color: AppColor.sub)),
         ],
         const SizedBox(height: 14),
-        // 本轮得分：答对 +难度分、答错 −1、跳过不计（口径见 score.dart）
+        // 本轮得分：答对 +题型分、错漏按档扣、跳过 −0.1（口径见 score.dart）
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
           decoration: BoxDecoration(
@@ -293,7 +293,9 @@ class _QuizPageState extends State<QuizPage> {
                   Text('本轮得分',
                       style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
                   const SizedBox(height: 2),
-                  Text(t.points > 0 ? '+${t.points}' : '${t.points}',
+                  Text(t.points > 0
+                      ? '+${ScoreBook.fmt(t.points)}'
+                      : ScoreBook.fmt(t.points),
                       style: const TextStyle(
                           fontSize: 26, height: 1.1, fontWeight: FontWeight.w300)),
                 ],
@@ -302,10 +304,10 @@ class _QuizPageState extends State<QuizPage> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('总分 ${ScoreBook.instance.total}',
+                  Text('总分 ${ScoreBook.fmt(ScoreBook.instance.total)}',
                       style: const TextStyle(fontSize: 13)),
                   const SizedBox(height: 3),
-                  Text('答对 +1~3 · 连击有加成 · 答错 −1 · 跳过不计',
+                  Text('判断 +1 · 单选 +1.35 · 多选 +1.55 · 连击有加成 · 跳过 −0.1',
                       style: TextStyle(fontSize: 9.5, color: AppColor.sub)),
                 ],
               ),

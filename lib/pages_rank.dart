@@ -65,17 +65,24 @@ class _RankPageState extends State<RankPage> {
     }
   }
 
-  LeaderSnapshot _makeBoard() => Leaderboard.snapshot(
-        myId: Leaderboard.myId,
-        myNick: Store.s('nick', ''),
-        myTotal: ScoreBook.instance.total,
-        myAnswered: ScoreBook.instance.answered,
-        real: _real,
-        myCity: Store.s('cityName', ''),
-        myAxes: ScoreBook.instance.byAxis,
-        myRight: ScoreBook.instance.right,
-        myWrong: ScoreBook.instance.wrong,
-      );
+  /// v1.22.1：账本是 1.35 这种小数分，榜单是整数列——入口处四舍五入，
+  /// 排名差半分不算差。
+  LeaderSnapshot _makeBoard() {
+    final s = ScoreBook.instance;
+    return Leaderboard.snapshot(
+      myId: Leaderboard.myId,
+      myNick: Store.s('nick', ''),
+      myTotal: s.totalInt,
+      myAnswered: s.answered,
+      real: _real,
+      myCity: Store.s('cityName', ''),
+      myAxes: {
+        for (final e in s.byAxis.entries) e.key: e.value.round(),
+      },
+      myRight: s.right,
+      myWrong: s.wrong,
+    );
+  }
 
   Future<void> _pull({bool background = false}) async {
     if (_pulling || !_online) return;
@@ -512,9 +519,10 @@ class _RankPageState extends State<RankPage> {
               ),
               const SizedBox(height: 8),
               Text(
-                '每行下面的科目，是这几分从哪来：答对按难度加分（判断 1 / 单选 2 / 多选 3），'
-                '连对有加成，答错 −1，按题目的领域记。'
-                '「往期」是按旧规则（答对答错都 ±1）攒下的总分，单独留着，不硬拆成十份。',
+                '每行下面的科目，是这几分从哪来：答对按题型加分（判断 1 / 单选 1.35 / 多选 1.55），'
+                '连对有加成，答错 −1、漏选 −0.01、漏选加选错 −1.12、跳过 −0.1。'
+                '「往期」是按旧规则攒下的总分，单独留着，不硬拆成十份。'
+                '账本记到小数，榜上按整分显示。',
                 style: TextStyle(fontSize: 10, height: 1.6, color: AppColor.sub),
               ),
               const SizedBox(height: 6),

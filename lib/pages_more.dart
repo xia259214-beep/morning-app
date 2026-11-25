@@ -677,7 +677,7 @@ class _ProfileCard extends StatelessWidget {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text('${s.total}',
+                          Text(ScoreBook.fmt(s.total),
                               style: const TextStyle(
                                   fontSize: 30,
                                   height: 1.05,
@@ -1191,7 +1191,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('${ScoreBook.instance.total}',
+                    Text(ScoreBook.fmt(ScoreBook.instance.total),
                         style: const TextStyle(
                             fontSize: 22, fontWeight: FontWeight.w300)),
                     Text('总分', style: TextStyle(fontSize: 10, color: AppColor.sub)),
@@ -1237,7 +1237,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           _rowTile(
             '总分',
-            '${ScoreBook.instance.total} 分 · 对 ${ScoreBook.instance.right} / 错 ${ScoreBook.instance.wrong}',
+            '${ScoreBook.fmt(ScoreBook.instance.total)} 分 · 对 ${ScoreBook.instance.right} / 错 ${ScoreBook.instance.wrong}',
             onTap: _scoreSheet,
           ),
           _rowTile(
@@ -1357,7 +1357,7 @@ class _ProfilePageState extends State<ProfilePage> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('${s.total}',
+                  Text(ScoreBook.fmt(s.total),
                       style: const TextStyle(
                           fontSize: 34, height: 1.1, fontWeight: FontWeight.w300)),
                   Padding(
@@ -1371,10 +1371,14 @@ class _ProfilePageState extends State<ProfilePage> {
                 ],
               ),
               const SizedBox(height: 16),
-              _scoreLine('答对一题', '+1~3', '判断题 1 分 · 单选 2 分 · 多选 3 分'),
-              _scoreLine('连击加成', '再 +1~3', '连对第 3 题起每题额外加分，封顶 +3'),
-              _scoreLine('答错一题', '−1', '多选没选全也算答错，固定只扣 1 分'),
-              _scoreLine('跳过一题', '0', '跳过是「这块先不问」，不罚分，连击不断'),
+              _scoreLine('答对判断题', '+1', '最简单的题型'),
+              _scoreLine('答对单选题', '+1.35', '四个选项里挑一个'),
+              _scoreLine('答对多选题', '+1.55', '全选对才算对，天然最难'),
+              _scoreLine('连击加成', '再 +0.3~1.12', '连对 2 题 +0.3 · 5 题 +0.5 · 7 题 +0.7 · 10 题 +0.9 · 12 题 +1.12'),
+              _scoreLine('答错一题', '−1', '完全没碰到正确选项'),
+              _scoreLine('漏选一题', '−0.01', '只选了正确项但没选全，罚一口意思一下'),
+              _scoreLine('漏选加选错', '−1.12', '既碰了正确项、又选了错误项'),
+              _scoreLine('跳过一题', '−0.1', '跳过有成本，但罚得很轻，连击不断'),
               _scoreLine('偏好题', '0', '没有标准答案，只算接触过'),
               const SizedBox(height: 8),
               Text(
@@ -1387,7 +1391,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   style: TextStyle(fontSize: 10.5, height: 1.6, color: AppColor.sub)),
               if (s.byAxis.isNotEmpty || s.legacy != 0) ...[
                 const SizedBox(height: 12),
-                Text('这 ${s.total} 分是哪几科挣的',
+                Text('这 ${ScoreBook.fmt(s.total)} 分是哪几科挣的',
                     style: TextStyle(fontSize: 11, color: AppColor.sub)),
                 const SizedBox(height: 7),
                 Wrap(
@@ -1419,19 +1423,22 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  /// 一科一行小字：「科技 +6」
-  Widget _axisScore(String name, int v) => Text.rich(TextSpan(children: [
-        TextSpan(
-            text: '$name ',
-            style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
-        TextSpan(
-          text: v > 0 ? '+$v' : '−${v.abs()}',
-          style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w500,
-              color: v > 0 ? AppColor.ink : AppColor.sub),
-        ),
-      ]));
+  /// 一科一行小字：「科技 +6 · 未分科 −0.1」
+  Widget _axisScore(String name, double v) {
+    final t = ScoreBook.fmt(v.abs());
+    return Text.rich(TextSpan(children: [
+      TextSpan(
+          text: '$name ',
+          style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
+      TextSpan(
+        text: v > 0 ? '+$t' : '−$t',
+        style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w500,
+            color: v > 0 ? AppColor.ink : AppColor.sub),
+      ),
+    ]));
+  }
 
   Widget _scoreLine(String label, String value, String note) => Padding(        padding: const EdgeInsets.only(bottom: 9),
         child: Row(
@@ -1439,11 +1446,12 @@ class _ProfilePageState extends State<ProfilePage> {
             SizedBox(
                 width: 74,
                 child: Text(label, style: const TextStyle(fontSize: 12.5))),
+            // v1.22.1：值有「再 +0.3~1.12」这种长度，34px 装不下
             SizedBox(
-                width: 34,
+                width: 108,
                 child: Text(value,
                     style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w500))),
+                        fontSize: 12, fontWeight: FontWeight.w500))),
             Expanded(
                 child: Text(note,
                     style: TextStyle(fontSize: 10.5, color: AppColor.sub))),

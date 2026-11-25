@@ -82,7 +82,7 @@ class QItem {
     this.lv = 0,
   });
 
-  /// 计分用的难度档：1 易 / 2 中 / 3 难
+  /// 计分用的难度档：1 易 / 2 中 / 3 难（反馈条上的难度点用）
   int get difficulty {
     if (lv >= 1 && lv <= 3) return lv;
     return switch (kind) {
@@ -93,32 +93,62 @@ class QItem {
     };
   }
 
+  /// 答对这道题挣多少分（v1.22.1 用户定的精确分值）：
+  /// 判断 +1 · 单选 +1.35 · 多选 +1.55 · 偏好题无对错
+  double get gain => switch (kind) {
+        QKind.judge => 1.0,
+        QKind.single => 1.35,
+        QKind.multi => 1.55,
+        QKind.pref => 0.0,
+      };
+
   bool get isKnowledge => kind != QKind.pref;
 
   /// 展示用的题型说明
   String get kindHint => switch (kind) {
         QKind.single => '选一个',
-        QKind.multi => '可多选，全选对才算对',
+        QKind.multi => '可多选，全选才算对',
         QKind.judge => '判断对错',
         QKind.pref => '没有对错',
       };
+}
+
+/// 没答对时错在哪一档（v1.22.1：三种错法扣的分不一样）。
+enum MissKind {
+  /// 完全答错：没碰到任何正确选项
+  none,
+
+  /// 纯漏选：只选了正确项，但没选全
+  miss,
+
+  /// 漏选+选错：既碰了正确项，也选了错误项
+  missWrong,
 }
 
 /// 判分结果。pref 题 correct 为 null（本来就没有对错）。
 class Grade {
   final bool? correct;
 
-  /// 多选里选对了一部分但没全对
+  /// 多选里选对了一部分但没全对（碰过正确项就算）
   final bool partial;
 
-  const Grade(this.correct, {this.partial = false});
+  /// 没答对时错在哪一档（答对时为 none）
+  final MissKind miss;
+
+  const Grade(this.correct, {this.partial = false, this.miss = MissKind.none});
 }
 
 Grade gradeOf(QItem q, Set<int> picked) {
   if (q.kind == QKind.pref) return const Grade(null);
   final ok = picked.length == q.answers.length && picked.containsAll(q.answers);
+  if (ok) return const Grade(true);
   final touched = picked.any(q.answers.contains);
-  return Grade(ok, partial: !ok && touched);
+  // 只选了正确项但没选全 = 纯漏选；混进了错误选项 = 漏选+选错；
+  // 一个正确项都没碰到 = 完全答错。
+  final miss = picked.isNotEmpty && picked.every(q.answers.contains)
+      ? MissKind.miss
+      : (touched ? MissKind.missWrong : MissKind.none);
+  return Grade(false, partial: touched, miss: miss);
 }
 
 // ---------------------------------------------------------------- 生成

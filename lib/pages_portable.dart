@@ -346,7 +346,7 @@ class _DataPortPageState extends State<DataPortPage> {
                     _chip('打卡', '${Store.records.length} 天'),
                     _chip('流水', '${Journal.events.length} 条'),
                     _chip('答过的题', '${profile.answered.length} 道'),
-                    _chip('总分', '${score.total}'),
+                    _chip('总分', ScoreBook.fmt(score.total)),
                   ],
                 ),
               ],

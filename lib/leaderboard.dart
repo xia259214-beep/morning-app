@@ -365,18 +365,19 @@ static List<RankEntry> builtIns({
     );
   }
 
-  /// 页面直接用当前状态算一份本地快照（不等网络）
+  /// 页面直接用当前状态算一份本地快照（不等网络）。
+  /// v1.22.1：账本是小数分（1.35 这种），榜单是整数列，入口取整。
   static LeaderSnapshot localNow({List<RankEntry> real = const []}) {
     final s = ScoreBook.instance;
     final city = Store.s('cityName', '');
     return snapshot(
       myId: myId.isEmpty ? ensureDeviceId() : myId,
       myNick: Store.s('nick', ''),
-      myTotal: s.total,
+      myTotal: s.totalInt,
       myAnswered: s.answered,
       real: real,
       myCity: city,
-      myAxes: s.byAxis,
+      myAxes: {for (final e in s.byAxis.entries) e.key: e.value.round()},
     );
   }
 }
@@ -477,14 +478,17 @@ class LeaderSync {
       {
         'device_id': id,
         'nick': Leaderboard.normalizeNick(Store.s('nick', '')),
-        'total': s.total.clamp(-100000, 100000),
+        // v1.22.1：账本是小数分，云端列是整数——上报时四舍五入
+        'total': s.totalInt.clamp(-100000, 100000),
         'right_cnt': s.right.clamp(0, 1000000),
         'wrong_cnt': s.wrong.clamp(0, 1000000),
         'answered': s.answered.clamp(0, 1000000),
         'city': Store.s('cityName', ''),
         // 各科得分（v1.21.0）。榜上那一行要显示「科技 +6 · 体育 +3」，
         // 就得把分科也一起报上来；空对象表示只报总分。
-        'axes': s.byAxis,
+        'axes': {
+          for (final e in s.byAxis.entries) e.key: e.value.round(),
+        },
         'app_version': kAppVersion,
       },
     ]);
