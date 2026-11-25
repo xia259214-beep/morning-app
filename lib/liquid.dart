@@ -13,11 +13,13 @@
 // ============================================================================
 
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
 import 'core.dart';
 import 'glass.dart';
+import 'skins.dart';
 
 /// 液态水晶的一套参数。四种新风格共用同一套结构，只换颜色。
 class LiquidTheme {
@@ -375,6 +377,7 @@ class _LiquidButtonState extends State<LiquidButton>
     final t = Liquid.theme;
     if (t == null) {
       // 没开液态风格：退回原来的 FilledButton，一个像素都不差
+      // （皮肤包按深色底设计，浅色纸底上浅字会看不清，所以不在这里生效）
       return FilledButton(
         onPressed: widget.onPressed,
         style: FilledButton.styleFrom(
@@ -385,6 +388,13 @@ class _LiquidButtonState extends State<LiquidButton>
         ),
         child: Text(widget.text),
       );
+    }
+
+    // v1.21.3：选了按键材质皮肤 → 按皮肤包骨架渲染（无发光、无涌光），
+    // 只换 8 个材质参数，按钮形状 / 高度 / 字号不变。
+    final skin = CtaSkin.skin;
+    if (skin != null && !widget.secondary) {
+      return _SkinButton(skin: skin, text: widget.text, onPressed: widget.onPressed);
     }
 
     final ink = widget.secondary ? t.edgeB : t.btnInk;
@@ -511,6 +521,207 @@ class _SurgePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SurgePainter old) => old.progress != progress;
+}
+
+/// 按键材质皮肤按钮（v1.21.3）。骨架照皮肤包：
+/// 一个形状、inset 三条内缘线、按下原地缩放 .972 + 内凹阴影 + 明度略降，
+/// 无发光、无涌光、无 translateY。回弹 320ms 阻尼曲线，峰值 1.006。
+class _SkinButton extends StatefulWidget {
+  final ButtonSkin skin;
+  final String text;
+  final VoidCallback? onPressed;
+
+  const _SkinButton({
+    required this.skin,
+    required this.text,
+    this.onPressed,
+  });
+
+  @override
+  State<_SkinButton> createState() => _SkinButtonState();
+}
+
+class _SkinButtonState extends State<_SkinButton> {
+  bool _pressed = false;
+
+  static const _radius = 20.0;
+
+  void _up() {
+    if (_pressed) setState(() => _pressed = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.skin;
+    final r = _radius;
+
+    final List<BoxShadow> cast = s.castColor.alpha == 0
+        ? const []
+        : [
+            BoxShadow(
+              color: s.castColor,
+              blurRadius: s.castBlur,
+              offset: s.castOffset,
+            ),
+          ];
+
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => _up(),
+      onTapCancel: _up,
+      onTap: widget.onPressed,
+      child: AnimatedScale(
+        duration: _pressed
+            ? const Duration(milliseconds: 160)
+            : const Duration(milliseconds: 320),
+        curve: _pressed ? Curves.easeOut : Cubic(0.22, 1, 0.36, 1),
+        scale: _pressed ? 0.972 : 1.0,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 120),
+          opacity: _pressed ? 0.94 : 1.0,
+          child: DecoratedBox(
+            // 外部接触阴影（--cta-cast）：四档为零，不画
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(r),
+              boxShadow: cast,
+            ),
+            child: ClipRRect(
+            borderRadius: BorderRadius.circular(r),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: s.blurSigma > 0
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(r),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(
+                              sigmaX: s.blurSigma,
+                              sigmaY: s.blurSigma,
+                            ),
+                            child: _face(s, r),
+                          ),
+                        )
+                      : _face(s, r),
+                ),
+                // 内缘线：顶部高光 1px + 底部暗线收口 1px + 按下内凹阴影
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _SkinEdges(
+                        skin: s,
+                        pressed: _pressed,
+                        radius: r,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  height: 56,
+                  child: Center(
+                    child: Text(
+                      widget.text,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: s.fg,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 表面填充 + 1px 细描边（row 档填充为透明时是 null，只有缘线）
+  Widget _face(ButtonSkin s, double r) => Container(
+        decoration: s.face.length == 1 && s.face.first.alpha == 0
+            ? null
+            : BoxDecoration(
+                color: s.face.length == 1 ? s.face.first : null,
+                gradient: s.face.length > 1
+                    ? LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: s.face,
+                        stops: s.stops,
+                      )
+                    : null,
+                borderRadius: BorderRadius.circular(r),
+              ),
+        foregroundDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(r),
+          border: s.edge.alpha == 0
+              ? null
+              : Border.all(color: s.edge, width: 1),
+        ),
+      );
+}
+
+/// 画内缘：顶部 1px 高光、底部 1px 暗线（防泛白）、按下时 6px 内凹阴影。
+class _SkinEdges extends CustomPainter {
+  final ButtonSkin skin;
+  final bool pressed;
+  final double radius;
+
+  _SkinEdges({
+    required this.skin,
+    required this.pressed,
+    required this.radius,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = skin;
+    final rect = Offset.zero & size;
+    final rr = RRect.fromRectAndRadius(rect.deflate(0.5), Radius.circular(radius - 0.5));
+
+    // 顶部 1px 方向性高光（内凹档是暗线——顶/底光反转）
+    if (s.top.alpha != 0) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(1, 0.5, size.width - 2, 1),
+          Radius.circular(radius - 1),
+        ),
+        Paint()..color = s.top,
+      );
+    }
+
+    // 底部 1px 暗线收口——任何档都不许缺
+    if (s.bottom.alpha != 0) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(1, size.height - 1.5, size.width - 2, 1),
+          Radius.circular(radius - 1),
+        ),
+        Paint()..color = s.bottom,
+      );
+    }
+
+    // 按下：6px 内凹阴影，用模糊描边近似 CSS inset shadow
+    if (pressed && s.press.alpha != 0) {
+      canvas.save();
+      canvas.clipRRect(RRect.fromRectAndRadius(rect, Radius.circular(radius)));
+      canvas.drawRRect(
+        rr,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 12
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7)
+          ..color = s.press,
+      );
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SkinEdges old) =>
+      old.pressed != pressed || old.skin != skin;
 }
 
 /// 液态玻璃卡片。三层：外发光 + 渐变玻璃 + 棱镜描边 + 顶部一道反光。

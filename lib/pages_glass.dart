@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'core.dart';
 import 'glass.dart';
 import 'liquid.dart';
+import 'skins.dart';
 
 // ============================================================================
 // 界面质感设置（v1.9.0）
@@ -69,6 +70,14 @@ class _GlassPageState extends State<GlassPage> {
     setState(() {});
   }
 
+  void _pickSkin(ButtonSkin? s) {
+    // null = 「跟随当前风格」这一项；非空 = 选中的材质（未知 id 会自动回退）
+    final id = s?.id ?? '';
+    CtaSkin.apply(id);
+    Store.set(CtaSkin.storeKey, CtaSkin.id ?? '');
+    setState(() {});
+  }
+
   void _motion(bool v) {
     Glass.apply(Glass.style.id, motionOn: v);
     Store.set('glassMotion', v ? '1' : '0');
@@ -109,6 +118,17 @@ class _GlassPageState extends State<GlassPage> {
           const SizedBox(height: 10),
           _liquidCard(null),
           for (final t in kLiquidThemes) _liquidCard(t),
+          const SizedBox(height: 18),
+          _sectionTitle('按钮材质 · 新'),
+          const SizedBox(height: 6),
+          Text(
+            Liquid.on
+                ? '给主按钮换一层「料子」：七档材质共用同一副骨架，切换只换参数，不加层、不加发光。'
+                : '要先选上面任意一套液态风格，按钮材质才会生效（材质按深色底设计）。',
+            style: TextStyle(fontSize: 11, height: 1.55, color: AppColor.bgSub)),
+          const SizedBox(height: 10),
+          _skinCard(null),
+          for (final s in kButtonSkins) _skinCard(s),
           const SizedBox(height: 18),
           _sectionTitle('原来的三套质感 · 都保留'),
           const SizedBox(height: 10),
@@ -198,6 +218,66 @@ class _GlassPageState extends State<GlassPage> {
                 Text(t?.note ?? '原来的水晶 / 流光 / 原纸三套，不变',
                     style: TextStyle(
                         fontSize: 11, height: 1.5, color: AppColor.sub)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Icon(
+            active ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+            size: 20,
+            color: active ? AppColor.accent : AppColor.sub,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 按钮材质卡片。[s] 为 null 表示「跟随当前风格」这一项。
+  Widget _skinCard(ButtonSkin? s) {
+    final active = s == null ? !CtaSkin.on : (CtaSkin.id == s.id);
+    return GlassCard(
+      padding: const EdgeInsets.all(12),
+      radius: 16,
+      featured: active,
+      blur: false,
+      accent: active ? AppColor.accent.withOpacity(0.85) : null,
+      onTap: () => _pickSkin(s),
+      child: Row(
+        children: [
+          // 迷你预览：一颗按钮形状，按材质画出填充与顶/底缘线
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: SizedBox(
+              width: 72,
+              height: 62,
+              child: CustomPaint(
+                painter: _MiniSkinPainter(s),
+                child: Center(
+                  child: s == null
+                      ? Icon(Icons.style_outlined, size: 20, color: AppColor.sub)
+                      : null,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(s?.name ?? '跟随当前风格',
+                    style: TextStyle(
+                        fontSize: 15,
+                        color: AppColor.ink,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 5),
+                Text(
+                  s == null
+                      ? '默认。用液态风格自带的按键外观'
+                      : '${s.family} · ${s.note} · 对比度 ${s.contrast}',
+                  style: TextStyle(
+                      fontSize: 11, height: 1.5, color: AppColor.sub),
+                ),
               ],
             ),
           ),
@@ -517,4 +597,79 @@ class _MiniStylePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _MiniStylePainter old) =>
       old.s.id != s.id || old.dark != dark;
+}
+
+/// 按钮材质缩略图：深底上一颗小按钮，静态画出填充 + 描边 + 顶/底缘线。
+/// [s] 为 null 时画一个「跟随」示意（暖白实心）。
+class _MiniSkinPainter extends CustomPainter {
+  final ButtonSkin? s;
+  _MiniSkinPainter(this.s);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // 深色底，模拟液态风格的深背景
+    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF14110E));
+
+    final rect = Rect.fromLTWH(6, size.height / 2 - 11, size.width - 12, 22);
+    final rr = RRect.fromRectAndRadius(rect, const Radius.circular(11));
+
+    final skin = s;
+    if (skin == null) {
+      canvas.drawRRect(rr, Paint()..color = const Color(0xFFFCF6EA));
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect.deflate(0.6), const Radius.circular(10.4)),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = const Color(0xFFE8C9A0),
+      );
+      return;
+    }
+
+    // 填充：纯色或垂直渐变
+    if (skin.face.length == 1) {
+      if (skin.face.first.alpha != 0) {
+        canvas.drawRRect(rr, Paint()..color = skin.face.first);
+      }
+    } else {
+      canvas.drawRRect(
+        rr,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: skin.face,
+            stops: skin.stops,
+          ).createShader(rect),
+      );
+    }
+
+    // 细描边
+    if (skin.edge.alpha != 0) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect.deflate(0.6), const Radius.circular(10.4)),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = skin.edge,
+      );
+    }
+
+    // 顶部 1px 高光 + 底部 1px 暗线
+    if (skin.top.alpha != 0) {
+      canvas.drawRect(
+        Rect.fromLTWH(rect.left + 2, rect.top + 0.5, rect.width - 4, 1),
+        Paint()..color = skin.top,
+      );
+    }
+    if (skin.bottom.alpha != 0) {
+      canvas.drawRect(
+        Rect.fromLTWH(rect.left + 2, rect.bottom - 1.5, rect.width - 4, 1),
+        Paint()..color = skin.bottom,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _MiniSkinPainter old) => old.s != s;
 }

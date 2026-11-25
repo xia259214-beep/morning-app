@@ -17,6 +17,7 @@ import 'pages_morning.dart';
 import 'pages_news.dart';
 import 'pages_setup.dart';
 import 'pages_update.dart';
+import 'skins.dart';
 
 Future<void> main() async {
   // v1.11.0：全局崩溃捕获先装上，后面任何初始化炸了都能留痕。
@@ -37,6 +38,8 @@ Future<void> main() async {
     // v1.17.0：液态水晶风格（香槟/极光/曜石/薄荷）。空串=沿用原来的风格。
     final liquidId = Store.s('liquidId', '');
     Liquid.apply(liquidId);
+    // v1.21.3：按键材质皮肤包（七档）。空串=跟随当前液态风格；未知 id 自动回退。
+    CtaSkin.restore();
     // v1.17.1：亮卡配深字。历史组合「墨夜配色 + 亮系液态」会把浅字压在亮卡上，
     // 看不清；启动时自动校回暖纸。曜石是中亮暗卡，配墨夜正好，不动。
     if (Liquid.on && !Liquid.surfaceUsesLightInk(Liquid.theme!)) {
@@ -79,7 +82,9 @@ class MorningApp extends StatelessWidget {
         valueListenable: Glass.notifier,
         builder: (context, glassId, __) => ValueListenableBuilder<String>(
           valueListenable: Liquid.notifier,
-          builder: (context, liquidId, ___) {
+          builder: (context, liquidId, ___) => ValueListenableBuilder<String>(
+            valueListenable: CtaSkin.notifier,
+            builder: (context, skinId, ____) {
           _applyStatusBar();
           return MaterialApp(
             title: '晨序MORNING',
@@ -91,7 +96,8 @@ class MorningApp extends StatelessWidget {
                 : GlassBackdrop(child: child ?? const SizedBox.shrink()),
             home: const RootShell(),
           );
-          },
+            },
+          ),
         ),
       ),
     );
