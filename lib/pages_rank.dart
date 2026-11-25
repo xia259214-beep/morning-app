@@ -42,6 +42,10 @@ class _RankPageState extends State<RankPage> {
   bool _pulling = false;
   bool _online = true;
 
+  // v1.21.4：对拼码平时收起来，要用再点开——
+  // 它一个月用不了几次，却天天占着一整屏。
+  bool _duelOpen = false;
+
   @override
   void initState() {
     super.initState();
@@ -279,34 +283,54 @@ class _RankPageState extends State<RankPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('我的对拼码',
-                      style: TextStyle(fontSize: 11, color: AppColor.sub)),
-                  const SizedBox(height: 8),
-                  SelectableText(
-                    Rank.codeOf(
-                      answered: _answered,
-                      streak: Store.streak,
-                      correct: Rank.correctOf(),
-                      power: PowerChart.instance,
-                    ),
-                    style: const TextStyle(
-                        fontSize: 15, letterSpacing: 0.6, fontWeight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      TextButton(
-                        onPressed: _copyCode,
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: const Size(0, 30),
+                  // v1.21.4：对拼码平时折叠，点标题展开——
+                  // 用得少的东西不该常驻一整屏。
+                  InkWell(
+                    onTap: () => setState(() => _duelOpen = !_duelOpen),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text('我的对拼码',
+                              style: TextStyle(fontSize: 11, color: AppColor.sub)),
                         ),
-                        child: Text('复制',
-                            style:
-                                TextStyle(fontSize: 12, color: AppColor.accent)),
-                      ),
-                    ],
+                        Icon(
+                          _duelOpen
+                              ? Icons.expand_less
+                              : Icons.expand_more,
+                          size: 18,
+                          color: AppColor.sub,
+                        ),
+                      ],
+                    ),
                   ),
+                  if (_duelOpen) ...[
+                    const SizedBox(height: 8),
+                    SelectableText(
+                      Rank.codeOf(
+                        answered: _answered,
+                        streak: Store.streak,
+                        correct: Rank.correctOf(),
+                        power: PowerChart.instance,
+                      ),
+                      style: const TextStyle(
+                          fontSize: 15, letterSpacing: 0.6, fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        TextButton(
+                          onPressed: _copyCode,
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(0, 30),
+                          ),
+                          child: Text('复制',
+                              style:
+                                  TextStyle(fontSize: 12, color: AppColor.accent)),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -486,9 +510,9 @@ class _RankPageState extends State<RankPage> {
               ),
               const SizedBox(height: 8),
               Text(
-                '每行下面的科目，是这几分从哪来：答对一科 +1、答错 −1，'
-                '按题目的领域记。「往期」是这一版之前的总分，当时没分科记账，'
-                '单独留着，不硬拆成十份。',
+                '每行下面的科目，是这几分从哪来：答对按难度加分（判断 1 / 单选 2 / 多选 3），'
+                '连对有加成，答错 −1，按题目的领域记。'
+                '「往期」是按旧规则（答对答错都 ±1）攒下的总分，单独留着，不硬拆成十份。',
                 style: TextStyle(fontSize: 10, height: 1.6, color: AppColor.sub),
               ),
               const SizedBox(height: 6),
@@ -585,7 +609,11 @@ class _RankPageState extends State<RankPage> {
         style: TextStyle(fontSize: 10, color: AppColor.sub),
       );
     }
-    return Container(
+    return GestureDetector(
+      // v1.21.4：点榜单上任何一行，弹出那个人的段位雷达图。
+      // 榜上只有一个总分数字，看不出强在哪弱在哪；点开就有十边形。
+      onTap: () => _showRadar(e, me: me),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.fromLTRB(12, 9, 12, 10),
       decoration: BoxDecoration(
@@ -634,15 +662,91 @@ class _RankPageState extends State<RankPage> {
             ),
         ],
       ),
+      ),
     );
   }
 
-  /// 各科得分 → 一行小字：「科技 +18 · 体育 +12 · 往期 +6」。
-  /// 取绝对值最大的三科，剩下的收成「等 N 科」，行宽才不会炸。
+  /// 点榜单一行，弹出那个人的段位雷达图（v1.21.4）。
+  /// 自己用真实的战力账本；别人用他上报的分科反推——
+  /// 战力口径是「答对 +6、答错 −5」，所以 第 v 分 ≈ 50 + 6v，
+  /// 夹在 0~100 里再画，不凭空编数。
+  void _showRadar(RankEntry e, {required bool me}) {
+    final PowerChart p;
+    if (me) {
+      p = PowerChart.instance;
+    } else {
+      p = PowerChart({
+        for (final a in kAxes)
+          a: (50.0 + 6.0 * (e.axes[a] ?? 0)).clamp(0, 100).toDouble(),
+      });
+    }
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColor.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          e.nick,
+          style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: me ? AppColor.accent : AppColor.ink),
+        ),
+        content: SizedBox(
+          width: 300,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('总分 ${e.total} · 答了 ${e.answered} 道',
+                  style: TextStyle(fontSize: 11.5, color: AppColor.sub)),
+              const SizedBox(height: 10),
+              Center(
+                child: PowerRadar(
+                  values: p.normalized,
+                  grades: AxisGrade.axesOf(p),
+                  size: 230,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Center(
+                child: Text(
+                  '综合 ${AxisGrade.overallOf(p)}',
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColor.accent),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text('等级 A–F：A 最强，C 是「还没看清」，F 是这块基本没答过。',
+                  style: TextStyle(fontSize: 10, height: 1.5, color: AppColor.sub)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('关闭', style: TextStyle(color: AppColor.accent)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 各科得分 → 一行小字：「科技 +18 · 体育 +12 · 扣 生活 −2 · 军事 −1」。
+  /// v1.21.4：挣的分和扣的分都摆出来——只写 +的分，账就不完整，
+  /// 答错的人看到自己名字底下全是进账，会以为系统没记他的错。
   /// 返回 null 表示这一行没分科数据。
   TextSpan? _scoreParts(RankEntry e, {bool dim = false}) {
-    final pairs = e.axes.entries.where((x) => x.value != 0).toList()
+    final all = e.axes.entries.where((x) => x.value != 0).toList()
       ..sort((a, b) => b.value.abs().compareTo(a.value.abs()));
+    final gains = all.where((x) => x.value > 0).toList();
+    final losses = all.where((x) => x.value < 0).toList();
+    final shown = <MapEntry<String, int>>[
+      ...gains.take(2),
+      ...losses.take(2),
+    ];
     final spans = <InlineSpan>[];
     void add(String name, int v) {
       if (spans.isNotEmpty) {
@@ -663,12 +767,13 @@ class _RankPageState extends State<RankPage> {
       ));
     }
 
-    for (final x in pairs.take(3)) {
+    for (final x in shown) {
       add(x.key, x.value);
     }
-    if (pairs.length > 3) {
+    final restCount = all.length - shown.length;
+    if (restCount > 0) {
       spans.add(TextSpan(
-          text: ' 等 ${pairs.length} 科',
+          text: ' 等 ${all.length} 科',
           style: TextStyle(fontSize: 9.5, color: AppColor.sub)));
     }
     // 旧版本攒下的总分，没分科，单独标出来，不混进任何一科

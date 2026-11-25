@@ -703,7 +703,7 @@ class _ProfileCard extends StatelessWidget {
                           style:
                               TextStyle(fontSize: 10, color: AppColor.sub)),
                       const SizedBox(height: 2),
-                      Text('答对 +1 · 答错 −1',
+                      Text('答对 +1~3 · 答错 −1',
                           style:
                               TextStyle(fontSize: 10, color: AppColor.sub)),
                     ],
@@ -1371,9 +1371,10 @@ class _ProfilePageState extends State<ProfilePage> {
                 ],
               ),
               const SizedBox(height: 16),
-              _scoreLine('答对一题', '+1', '完全选对才加分'),
-              _scoreLine('答错一题', '−1', '多选没选全也算答错'),
-              _scoreLine('跳过一题', '0', '跳过是「这块先不问」，不罚分'),
+              _scoreLine('答对一题', '+1~3', '判断题 1 分 · 单选 2 分 · 多选 3 分'),
+              _scoreLine('连击加成', '再 +1~3', '连对第 3 题起每题额外加分，封顶 +3'),
+              _scoreLine('答错一题', '−1', '多选没选全也算答错，固定只扣 1 分'),
+              _scoreLine('跳过一题', '0', '跳过是「这块先不问」，不罚分，连击不断'),
               _scoreLine('偏好题', '0', '没有标准答案，只算接触过'),
               const SizedBox(height: 8),
               Text(

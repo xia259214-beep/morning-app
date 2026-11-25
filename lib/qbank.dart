@@ -64,6 +64,11 @@ class QItem {
 
   final String axis;
 
+  /// 难度档 1/2/3。0 = 没标，按题型自动推：
+  /// 判断题最容易(1)，单选中等(2)，多选要全对才算对、最难(3)。
+  /// 个别题确实偏难/偏易时，在题库里显式给这一项即可覆盖自动值。
+  final int lv;
+
   const QItem({
     required this.id,
     required this.kind,
@@ -74,7 +79,19 @@ class QItem {
     this.explain = '',
     this.weights = const <Map<String, double>>[],
     this.axis = '生活',
+    this.lv = 0,
   });
+
+  /// 计分用的难度档：1 易 / 2 中 / 3 难
+  int get difficulty {
+    if (lv >= 1 && lv <= 3) return lv;
+    return switch (kind) {
+      QKind.judge => 1,
+      QKind.single => 2,
+      QKind.multi => 3,
+      QKind.pref => 0,
+    };
+  }
 
   bool get isKnowledge => kind != QKind.pref;
 

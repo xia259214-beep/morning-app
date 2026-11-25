@@ -277,7 +277,7 @@ class _QuizPageState extends State<QuizPage> {
               style: TextStyle(fontSize: 11.5, color: AppColor.sub)),
         ],
         const SizedBox(height: 14),
-        // 本轮得分：答对 +1、答错 −1、跳过不计（口径见 score.dart）
+        // 本轮得分：答对 +难度分、答错 −1、跳过不计（口径见 score.dart）
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
           decoration: BoxDecoration(
@@ -305,7 +305,7 @@ class _QuizPageState extends State<QuizPage> {
                   Text('总分 ${ScoreBook.instance.total}',
                       style: const TextStyle(fontSize: 13)),
                   const SizedBox(height: 3),
-                  Text('答对 +1 · 答错 −1 · 跳过不计',
+                  Text('答对 +1~3 · 连击有加成 · 答错 −1 · 跳过不计',
                       style: TextStyle(fontSize: 9.5, color: AppColor.sub)),
                 ],
               ),

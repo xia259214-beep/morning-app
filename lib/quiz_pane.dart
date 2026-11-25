@@ -24,10 +24,10 @@ class QuizTally {
   final int correct;
   final int skipped;
 
-  /// 本轮得分：答对 +1、答错 -1、跳过与偏好题 0（口径见 score.dart）。
+  /// 本轮得分：答对 +难度分、答错 −1、跳过与偏好题 0（口径见 score.dart）。
   ///
   /// 这个数不能由 correct / answered 反推：偏好题没有对错，跳过不罚分，
-  /// 光看「答了 10 道、对 6 道」算不出 6−4 还是 6−0。
+  /// 难度分和连击加成更是只有判分那一刻才知道。
   final int points;
 
   const QuizTally({
@@ -109,6 +109,10 @@ class _QuizPaneState extends State<QuizPane> {
 
   /// 本轮累计得分，跨「再来一轮」会跟着 tally 交出去
   int _points = 0;
+
+  /// 上一题的净得分和当前连对数，判分结果条上显示「+2 · 连击 3」用
+  int _lastGain = 0;
+  int _streakNow = 0;
 
   Set<int> _picked = <int>{};
   bool _graded = false;
@@ -257,19 +261,23 @@ class _QuizPaneState extends State<QuizPane> {
     _profile.save();
     PowerChart.instance.save();
 
-    // 总分：答对 +1、答错 −1，偏好题不计分（口径见 score.dart）。
-    // 多选「没选全」按答错处理——没答对就是没答对，不给半分的灰色地带，
-    // 否则「+1 / −1」这条规则就没法向用户解释清楚。
+    // 总分（口径见 score.dart）：答对 +难度分（判断 1 / 单选 2 / 多选 3），
+    // 连对第 3 题起每题额外 +1、封顶 +3；答错固定 −1；偏好题不计分。
+    // 多选「没选全」按答错处理——没答对就是没答对，不给半分的灰色地带。
     // 顺手记在题目的领域上（科技/体育/文化…），榜上那一行才说得清
     // 「这几分是哪一科挣的」。
     if (q.kind == QKind.pref) {
       ScoreBook.instance.recordPref().save();
-    } else if (g.correct == true) {
-      ScoreBook.instance.record(correct: true, axis: q.axis).save();
-      _points += ScoreBook.gainRight;
     } else {
-      ScoreBook.instance.record(correct: false, axis: q.axis).save();
-      _points -= ScoreBook.lossWrong;
+      final (book, delta) = ScoreBook.instance.record(
+        correct: g.correct == true,
+        axis: q.axis,
+        lv: q.difficulty,
+      );
+      book.save();
+      _points += delta;
+      _lastGain = delta;
+      _streakNow = book.streak;
     }
 
     final String detail;
@@ -457,7 +465,68 @@ class _QuizPaneState extends State<QuizPane> {
         color: bg,
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Text(text, style: const TextStyle(fontSize: 12.5, height: 1.6)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(text, style: const TextStyle(fontSize: 12.5, height: 1.6)),
+          // v1.22.0：本题挣/扣几分、连击到几了——计分有了难度档和连击，
+          // 只报对错的话，用户不知道这两分是哪来的。
+          if (q.isKnowledge) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                _gainChip(_lastGain),
+                if (ok && _streakNow >= ScoreBook.streakFrom) ...[
+                  const SizedBox(width: 8),
+                  _streakChip(_streakNow),
+                ],
+                const Spacer(),
+                Text('难度 ${'●' * q.difficulty}${'○' * (3 - q.difficulty)}',
+                    style:
+                        TextStyle(fontSize: 10.5, color: AppColor.sub)),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 本题净得分徽章：挣的分带加号、扣的分灰色
+  Widget _gainChip(int delta) {
+    final gain = delta > 0;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: gain ? AppColor.accentSoft : AppColor.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+            color: gain ? AppColor.accent.withOpacity(0.4) : AppColor.line),
+      ),
+      child: Text(
+        gain ? '+$delta 分' : '$delta 分',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: gain ? AppColor.accent : AppColor.sub,
+        ),
+      ),
+    );
+  }
+
+  /// 连击徽章：连对第 3 题起才出现，正是开始给加成的时机
+  Widget _streakChip(int streak) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColor.accentSoft,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        '连击 ×$streak',
+        style: TextStyle(
+            fontSize: 11, fontWeight: FontWeight.w600, color: AppColor.accent),
+      ),
     );
   }
 
