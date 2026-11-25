@@ -70,9 +70,11 @@ class _RankPageState extends State<RankPage> {
         myNick: Store.s('nick', ''),
         myTotal: ScoreBook.instance.total,
         myAnswered: ScoreBook.instance.answered,
-        myAxes: ScoreBook.instance.byAxis,
         real: _real,
         myCity: Store.s('cityName', ''),
+        myAxes: ScoreBook.instance.byAxis,
+        myRight: ScoreBook.instance.right,
+        myWrong: ScoreBook.instance.wrong,
       );
 
   Future<void> _pull({bool background = false}) async {
@@ -668,8 +670,9 @@ class _RankPageState extends State<RankPage> {
 
   /// 点榜单一行，弹出那个人的段位雷达图（v1.21.4）。
   /// 自己用真实的战力账本；别人用他上报的分科反推——
-  /// 战力口径是「答对 +6、答错 −5」，所以 第 v 分 ≈ 50 + 6v，
-  /// 夹在 0~100 里再画，不凭空编数。
+  /// 战力一次答对 +6、答错 −5，但「净 +18 分」可能是 3 对 0 错，
+  /// 也可能是 13 对 11 错，反推不出唯一值。这里按 2 倍保守折算
+  /// （宁可画小一点，也不给一个只答了几题的人挂三个 A），夹在 0~100 再画。
   void _showRadar(RankEntry e, {required bool me}) {
     final PowerChart p;
     if (me) {
@@ -677,7 +680,7 @@ class _RankPageState extends State<RankPage> {
     } else {
       p = PowerChart({
         for (final a in kAxes)
-          a: (50.0 + 6.0 * (e.axes[a] ?? 0)).clamp(0, 100).toDouble(),
+          a: (50.0 + 2.0 * (e.axes[a] ?? 0)).clamp(0, 100).toDouble(),
       });
     }
     showDialog<void>(
@@ -778,6 +781,17 @@ class _RankPageState extends State<RankPage> {
     }
     // 旧版本攒下的总分，没分科，单独标出来，不混进任何一科
     if (e.legacy != 0) add('往期', e.legacy);
+    // v1.21.4：答对/答错各多少道。只留净分的话，「对 100 错 95」和
+    // 「对 5 错 0」看着一模一样；两边摆出来，这几分怎么来的才说得清。
+    if (e.rightCnt > 0 || e.wrongCnt > 0) {
+      if (spans.isNotEmpty) {
+        spans.add(TextSpan(
+            text: ' · ', style: TextStyle(fontSize: 10, color: AppColor.sub)));
+      }
+      spans.add(TextSpan(
+          text: '对 ${e.rightCnt} · 错 ${e.wrongCnt}',
+          style: TextStyle(fontSize: 10, color: AppColor.sub)));
+    }
     if (spans.isEmpty) return null;
     return TextSpan(children: spans);
   }

@@ -40,6 +40,12 @@ class RankEntry {
   /// 空表示这个人只报了总分——老版本上报的行、或者还没答过题。
   final Map<String, int> axes;
 
+  /// 答对 / 答错各多少道（v1.21.4）。
+  /// 只记净分的话，一个「答对 100、答错 95」的人看起来和「答对 5、答错 0」
+  /// 一模一样；把两边都摆出来，「这 5 分是怎么来的」才说得清。
+  final int rightCnt;
+  final int wrongCnt;
+
   const RankEntry({
     required this.id,
     required this.nick,
@@ -48,6 +54,8 @@ class RankEntry {
     this.builtIn = false,
     this.city = '',
     this.axes = const {},
+    this.rightCnt = 0,
+    this.wrongCnt = 0,
   });
 
   /// 分科加起来多少分
@@ -63,6 +71,8 @@ class RankEntry {
         'answered': answered,
         'builtIn': builtIn,
         'city': city,
+        'rightCnt': rightCnt,
+        'wrongCnt': wrongCnt,
         if (axes.isNotEmpty) 'axes': axes,
       };
 
@@ -74,6 +84,8 @@ class RankEntry {
         builtIn: m['builtIn'] == true,
         city: (m['city'] ?? '').toString(),
         axes: _parseAxes(m['axes']),
+        rightCnt: (m['rightCnt'] is num) ? (m['rightCnt'] as num).round() : 0,
+        wrongCnt: (m['wrongCnt'] is num) ? (m['wrongCnt'] as num).round() : 0,
       );
 }
 
@@ -217,6 +229,11 @@ static List<RankEntry> builtIns({
         answered: (myAnswered + _offsetAt(i) * 3).clamp(0, 1000000),
         builtIn: true,
         axes: splitTotal(_nickAt(i), total),
+        // 陪练的对/错也照着分数编一份：答对加、答错减，加起来正好是总分
+        rightCnt: ((myAnswered + _offsetAt(i) * 3) ~/ 2 + total ~/ 2)
+            .clamp(0, 1000000),
+        wrongCnt: ((myAnswered + _offsetAt(i) * 3) ~/ 2 - total ~/ 2)
+            .clamp(0, 1000000),
       );
     });
   }
@@ -284,6 +301,8 @@ static List<RankEntry> builtIns({
     required List<RankEntry> real,
     String myCity = '',
     Map<String, int> myAxes = const {},
+    int myRight = 0,
+    int myWrong = 0,
   }) {
     final reals = cleanReal(real, myId);
     // 真人有几个就配几个内置对手；一个真人都没有时给 8 个，冷启动榜不空。
@@ -301,6 +320,8 @@ static List<RankEntry> builtIns({
       answered: myAnswered.clamp(0, 1000000),
       city: myCity,
       axes: myAxes,
+      rightCnt: myRight,
+      wrongCnt: myWrong,
     );
 
     final rows = <RankEntry>[...reals, ...built, me];
@@ -521,6 +542,12 @@ class LeaderSync {
                   : 0,
               city: (q['city'] ?? '').toString(),
               axes: _parseAxes(q['axes']),
+              rightCnt: (q['right_cnt'] is num)
+                  ? (q['right_cnt'] as num).round()
+                  : 0,
+              wrongCnt: (q['wrong_cnt'] is num)
+                  ? (q['wrong_cnt'] as num).round()
+                  : 0,
             );
           })
           .where((e) => e.id.isNotEmpty)

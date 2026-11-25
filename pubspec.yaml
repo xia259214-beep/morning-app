@@ -2,7 +2,7 @@ name: morning
 description: "晨序 MORNING —— 让每一个清晨都有意义。Android 智能闹钟与晨间流程 App（V1）。"
 publish_to: 'none'
 
-version: 1.22.0+42
+version: 1.22.1+43
 
 environment:
   sdk: ^3.5.4

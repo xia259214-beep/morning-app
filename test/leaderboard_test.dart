@@ -233,6 +233,39 @@ void main() {
     expect(old.axes, isEmpty);
     expect(old.legacy, 12, reason: '没分科的分要认成往期，不能凭空拆开');
   });
+
+  test('自己那一行带对/错计数：净分一样，来历不一样', () {
+    final s = Leaderboard.snapshot(
+      myId: myId,
+      myNick: '我',
+      myTotal: 5,
+      myAnswered: 200,
+      myRight: 105,
+      myWrong: 166,
+      real: const <RankEntry>[],
+    );
+    final me = s.rows.firstWhere((e) => e.id == myId);
+    expect(me.rightCnt, 105);
+    expect(me.wrongCnt, 166,
+        reason: '答错的道数必须显示出来，只看净分会把「错很多」的人藏起来');
+  });
+
+  test('云端行的对/错计数能原样带进来', () {
+    final e = RankEntry.fromJson(<String, dynamic>{
+      'id': 'd1',
+      'nick': '阿满',
+      'total': 9,
+      'answered': 15,
+      'rightCnt': 12,
+      'wrongCnt': 3,
+    });
+    expect(e.rightCnt, 12);
+    expect(e.wrongCnt, 3);
+    // 老缓存没有这两个字段，不能因此崩掉
+    final old = RankEntry.fromJson(<String, dynamic>{'id': 'd2', 'total': 3});
+    expect(old.rightCnt, 0);
+    expect(old.wrongCnt, 0);
+  });
 }
 
 /// 只测「坏 JSON 不当数据」这一条，不碰真实 Store 写盘
