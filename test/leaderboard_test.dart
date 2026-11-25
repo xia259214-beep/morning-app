@@ -21,13 +21,13 @@ void main() {
         (i) => RankEntry(
           id: 'real_device_${i.toString().padLeft(4, '0')}',
           nick: '真人$i',
-          total: start + i * 5,
+          total: (start + i * 5).toDouble(),
           answered: 30 + i,
         ),
       );
 
   test('陪练锚定在我附近：低分时前面有人、后面有人', () {
-    for (final my in <int>[0, 7, 30, -30]) {
+    for (final my in <double>[0, 7, 30, -30]) {
       final b = Leaderboard.builtIns(myTotal: my, myAnswered: 20);
       expect(b.length, 8);
       final ahead = b.where((e) => e.total > my).length;
@@ -40,7 +40,7 @@ void main() {
 
   test('陪练有水平上限，答到 60 分就能坐上第一', () {
     // 没有上限的话他们永远 +30，第一名永远追不到
-    for (final my in <int>[60, 61, 100, 5000]) {
+    for (final my in <double>[60, 61, 100, 5000]) {
       final b = Leaderboard.builtIns(myTotal: my, myAnswered: 200);
       expect(b.any((e) => e.total > my), isFalse,
           reason: '我 $my 分时不该还有人压在前面');
@@ -149,7 +149,8 @@ void main() {
 
     final many = List<RankEntry>.generate(
       80,
-      (i) => RankEntry(id: 'real_many_$i', nick: '人$i', total: i, answered: 1),
+      (i) => RankEntry(
+          id: 'real_many_$i', nick: '人$i', total: i.toDouble(), answered: 1),
     );
     expect(Leaderboard.cleanReal(many, myId).length, 50);
   });
@@ -175,12 +176,29 @@ void main() {
   // ---- v1.21.0：榜上每一行都要说清分数是哪几科挣的 ----
 
   test('分科明细加起来正好等于总分，正负都算', () {
-    for (final t in <int>[-40, -7, -1, 0, 1, 3, 4, 9, 47, 300]) {
+    for (final t in <double>[-40, -7, -1, 0, 1, 3, 4, 9, 47, 300]) {
       final axes = Leaderboard.splitTotal('阿泽', t);
-      final sum = axes.values.fold(0, (a, b) => a + b);
+      final sum = axes.values.fold(0.0, (a, b) => a + b);
       expect(sum, t, reason: '总分 $t 摊出来的分科必须对得上账');
       expect(axes.values.every((v) => v != 0), isTrue, reason: '别摆 0 分的科目');
     }
+  });
+
+  test('v1.22.3：小数总分也能分摊对账，云端行小数原样进出', () {
+    final axes = Leaderboard.splitTotal('小满', 13.5);
+    expect(axes.values.fold(0.0, (a, b) => a + b), 13.5,
+        reason: '1.35 这种小数分摊后加起来必须还是 13.5');
+
+    final e = RankEntry.fromJson(<String, dynamic>{
+      'id': 'd9',
+      'nick': '小数',
+      'total': 13.5,
+      'answered': 10,
+      'axes': {'科技': 8.5, '体育': 5.0},
+    });
+    expect(e.total, 13.5);
+    expect(e.axisSum, 13.5);
+    expect(e.legacy, 0);
   });
 
   test('同一行每次刷新分科不变；不同人的科目组合不一样', () {
@@ -210,7 +228,7 @@ void main() {
       myNick: '我',
       myTotal: 9,
       myAnswered: 12,
-      myAxes: const {'科技': 6, '体育': 3},
+      myAxes: const {'科技': 6.0, '体育': 3.0},
       real: const [],
     );
     final me = s.rows.firstWhere((e) => e.id == myId);

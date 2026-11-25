@@ -65,20 +65,17 @@ class _RankPageState extends State<RankPage> {
     }
   }
 
-  /// v1.22.1：账本是 1.35 这种小数分，榜单是整数列——入口处四舍五入，
-  /// 排名差半分不算差。
+  /// v1.22.3：云端 total 列已是 numeric，账本小数直通榜单。
   LeaderSnapshot _makeBoard() {
     final s = ScoreBook.instance;
     return Leaderboard.snapshot(
       myId: Leaderboard.myId,
       myNick: Store.s('nick', ''),
-      myTotal: s.totalInt,
+      myTotal: s.total,
       myAnswered: s.answered,
       real: _real,
       myCity: Store.s('cityName', ''),
-      myAxes: {
-        for (final e in s.byAxis.entries) e.key: e.value.round(),
-      },
+      myAxes: s.byAxis,
       myRight: s.right,
       myWrong: s.wrong,
     );
@@ -522,7 +519,7 @@ class _RankPageState extends State<RankPage> {
                 '每行下面的科目，是这几分从哪来：答对按题型加分（判断 1 / 单选 1.35 / 多选 1.55），'
                 '连对有加成，答错 −1、漏选 −0.01、漏选加选错 −1.12、跳过 −0.1。'
                 '「往期」是按旧规则攒下的总分，单独留着，不硬拆成十份。'
-                '账本记到小数，榜上按整分显示。',
+                '账本和榜上都记到小数（两位）。',
                 style: TextStyle(fontSize: 10, height: 1.6, color: AppColor.sub),
               ),
               const SizedBox(height: 6),
@@ -655,7 +652,7 @@ class _RankPageState extends State<RankPage> {
                         fontWeight: me ? FontWeight.w500 : FontWeight.normal)),
               ),
               const SizedBox(width: 8),
-              Text('总分 ${e.total}',
+              Text('总分 ${ScoreBook.fmt(e.total)}',
                   style: TextStyle(
                       fontSize: 12.5,
                       color: me ? AppColor.accent : AppColor.ink,
@@ -709,7 +706,7 @@ class _RankPageState extends State<RankPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('总分 ${e.total} · 答了 ${e.answered} 道',
+              Text('总分 ${ScoreBook.fmt(e.total)} · 答了 ${e.answered} 道',
                   style: TextStyle(fontSize: 11.5, color: AppColor.sub)),
               const SizedBox(height: 10),
               Center(
@@ -754,12 +751,12 @@ class _RankPageState extends State<RankPage> {
       ..sort((a, b) => b.value.abs().compareTo(a.value.abs()));
     final gains = all.where((x) => x.value > 0).toList();
     final losses = all.where((x) => x.value < 0).toList();
-    final shown = <MapEntry<String, int>>[
+    final shown = <MapEntry<String, double>>[
       ...gains.take(2),
       ...losses.take(2),
     ];
     final spans = <InlineSpan>[];
-    void add(String name, int v) {
+    void add(String name, double v) {
       if (spans.isNotEmpty) {
         spans.add(TextSpan(
             text: ' · ', style: TextStyle(fontSize: 10, color: AppColor.sub)));
@@ -768,7 +765,7 @@ class _RankPageState extends State<RankPage> {
           text: '$name ',
           style: TextStyle(fontSize: 10, color: AppColor.sub)));
       spans.add(TextSpan(
-        text: v > 0 ? '+$v' : '−${v.abs()}',
+        text: v > 0 ? '+${ScoreBook.fmt(v)}' : '−${ScoreBook.fmt(v.abs())}',
         style: TextStyle(
             fontSize: 10.5,
             fontWeight: FontWeight.w500,

@@ -28,17 +28,18 @@ import 'profile.dart';
 import 'score.dart';
 
 /// 榜单里的一行。[builtIn] 为 true 表示这是本机自带的陪练角色，不是真人。
+/// v1.22.3 起总分和分科都是小数（答题账本记 1.35 这种分值）。
 class RankEntry {
   final String id;
   final String nick;
-  final int total;
+  final double total;
   final int answered;
   final bool builtIn;
   final String city;
 
   /// 各科得分（科技/体育/文化…），v1.21.0 起才有。
   /// 空表示这个人只报了总分——老版本上报的行、或者还没答过题。
-  final Map<String, int> axes;
+  final Map<String, double> axes;
 
   /// 答对 / 答错各多少道（v1.21.4）。
   /// 只记净分的话，一个「答对 100、答错 95」的人看起来和「答对 5、答错 0」
@@ -59,10 +60,10 @@ class RankEntry {
   });
 
   /// 分科加起来多少分
-  int get axisSum => axes.values.fold(0, (a, b) => a + b);
+  double get axisSum => axes.values.fold(0.0, (a, b) => a + b);
 
   /// 这一版之前的总分，没分科。绑在总分上，不硬拆成十份。
-  int get legacy => total - axisSum;
+  double get legacy => total - axisSum;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -79,7 +80,7 @@ class RankEntry {
   factory RankEntry.fromJson(Map<String, dynamic> m) => RankEntry(
         id: (m['id'] ?? '').toString(),
         nick: (m['nick'] ?? '').toString(),
-        total: (m['total'] is num) ? (m['total'] as num).round() : 0,
+        total: (m['total'] is num) ? (m['total'] as num).toDouble() : 0,
         answered: (m['answered'] is num) ? (m['answered'] as num).round() : 0,
         builtIn: m['builtIn'] == true,
         city: (m['city'] ?? '').toString(),
@@ -90,11 +91,11 @@ class RankEntry {
 }
 
 /// 把云端/缓存里那一坨 JSON 收成 {科目: 分数}，脏数据直接丢掉。
-Map<String, int> _parseAxes(Object? raw) {
+Map<String, double> _parseAxes(Object? raw) {
   if (raw is! Map) return const {};
-  final out = <String, int>{};
+  final out = <String, double>{};
   raw.forEach((k, v) {
-    if (v is num && v != 0) out['$k'] = v.toInt();
+    if (v is num && v != 0) out['$k'] = (v as num).toDouble();
   });
   return out;
 }
@@ -120,7 +121,7 @@ class LeaderSnapshot {
   final RankEntry? nextAbove;
 
   /// 距离 [nextAbove] 还差几分
-  final int gap;
+  final double gap;
 
   /// 真人 / 内置各多少人
   final int realCount;
@@ -146,7 +147,7 @@ class LeaderSnapshot {
 
   String get chaseLine {
     if (nextAbove == null) return '你排在榜首';
-    return '再得 $gap 分超过「${nextAbove!.nick}」';
+    return '再得 ${ScoreBook.fmt(gap)} 分超过「${nextAbove!.nick}」';
   }
 }
 
@@ -212,7 +213,7 @@ class Leaderboard {
 /// 生成内置对手。分数 = 我的分数 + 偏移，但不越过各自的水平上限。
 /// 不存在 SQLite/云端里，每次即时算，所以永远跟得上我的分数。
 static List<RankEntry> builtIns({
-    required int myTotal,
+    required double myTotal,
     required int myAnswered,
     int count = 8,
   }) {
@@ -220,7 +221,9 @@ static List<RankEntry> builtIns({
     return List<RankEntry>.generate(n, (i) {
       final raw = myTotal + _offsetAt(i);
       // 上限只在「涨过头」时起作用；我分数低的时候它还是贴着我的
-      final total = math.min(raw, _ceilingAt(i)).clamp(-100000, 100000);
+      final total =
+          math.min(raw, _ceilingAt(i).toDouble()).clamp(-100000.0, 100000.0);
+      final totalInt = total.round();
       return RankEntry(
         id: '$builtInPrefix${_nickAt(i)}$i',
         nick: _nickAt(i),
@@ -230,9 +233,9 @@ static List<RankEntry> builtIns({
         builtIn: true,
         axes: splitTotal(_nickAt(i), total),
         // 陪练的对/错也照着分数编一份：答对加、答错减，加起来正好是总分
-        rightCnt: ((myAnswered + _offsetAt(i) * 3) ~/ 2 + total ~/ 2)
+        rightCnt: ((myAnswered + _offsetAt(i) * 3) ~/ 2 + totalInt ~/ 2)
             .clamp(0, 1000000),
-        wrongCnt: ((myAnswered + _offsetAt(i) * 3) ~/ 2 - total ~/ 2)
+        wrongCnt: ((myAnswered + _offsetAt(i) * 3) ~/ 2 - totalInt ~/ 2)
             .clamp(0, 1000000),
       );
     });
@@ -241,23 +244,26 @@ static List<RankEntry> builtIns({
   /// 把一个总分摊到几科上，加起来正好等于这个总分。
   ///
   /// 榜上每一行都要能对上账：几科相加 = 总分，差一分都会让人怀疑
-  /// 整张榜是编的。所以这里用固定权重（5:3:2）+ 余数补最后一科，
-  /// 不走浮点分摊。科目按昵称做种子挑——同一行每次刷新挑的还是那几科，
+  /// 整张榜是编的。所以这里用固定权重（5:3:2）分摊、余数补最后一科，
+  /// v1.22.3 起支持小数总分（分摊到两位小数）。
+  /// 科目按昵称做种子挑——同一行每次刷新挑的还是那几科，
   /// 不会一刷新就换一批。
-  static Map<String, int> splitTotal(String nick, int total) {
+  static Map<String, double> splitTotal(String nick, double total) {
     if (total == 0) return const {};
     final abs = total.abs();
     final rnd = math.Random(_seedOf(nick));
     final pool = <String>[...kAxes]..shuffle(rnd);
-    final n = abs < 4 ? math.min(2, abs) : 3;
+    final n = abs < 4 ? 2 : 3;
     final picks = pool.take(n).toList();
     final fr = n == 2 ? const <double>[0.6, 0.4] : const <double>[0.5, 0.3, 0.2];
     final sign = total < 0 ? -1 : 1;
-    final out = <String, int>{};
-    var used = 0;
+    final out = <String, double>{};
+    var used = 0.0;
     for (var i = 0; i < n; i++) {
-      final part = i == n - 1 ? abs - used : math.max(1, (abs * fr[i]).round());
-      out[picks[i]] = part * sign;
+      final part = i == n - 1
+          ? abs - used
+          : ScoreBook.r2(abs * fr[i]).clamp(0.01, double.infinity);
+      out[picks[i]] = ScoreBook.r2(part * sign);
       used += part;
     }
     return out;
@@ -281,7 +287,7 @@ static List<RankEntry> builtIns({
       out.add(RankEntry(
         id: e.id,
         nick: normalizeNick(e.nick),
-        total: e.total.clamp(-100000, 100000),
+        total: e.total.clamp(-100000.0, 100000.0),
         answered: e.answered.clamp(0, 1000000),
         city: e.city,
         axes: e.axes,
@@ -296,11 +302,11 @@ static List<RankEntry> builtIns({
   static LeaderSnapshot snapshot({
     required String myId,
     required String myNick,
-    required int myTotal,
+    required double myTotal,
     required int myAnswered,
     required List<RankEntry> real,
     String myCity = '',
-    Map<String, int> myAxes = const {},
+    Map<String, double> myAxes = const {},
     int myRight = 0,
     int myWrong = 0,
   }) {
@@ -316,7 +322,7 @@ static List<RankEntry> builtIns({
     final me = RankEntry(
       id: myId,
       nick: normalizeNick(myNick),
-      total: myTotal.clamp(-100000, 100000),
+      total: myTotal.clamp(-100000.0, 100000.0),
       answered: myAnswered.clamp(0, 1000000),
       city: myCity,
       axes: myAxes,
@@ -343,7 +349,7 @@ static List<RankEntry> builtIns({
       if (e.total < me.total) surpassed++;
     }
     RankEntry? above;
-    var gap = 0;
+    var gap = 0.0;
     for (var i = idx - 1; i >= 0; i--) {
       if (rows[i].total > me.total) {
         above = rows[i];
@@ -366,18 +372,18 @@ static List<RankEntry> builtIns({
   }
 
   /// 页面直接用当前状态算一份本地快照（不等网络）。
-  /// v1.22.1：账本是小数分（1.35 这种），榜单是整数列，入口取整。
+  /// v1.22.3：账本小数分直通榜单，云端 total 列已改 numeric，不再取整。
   static LeaderSnapshot localNow({List<RankEntry> real = const []}) {
     final s = ScoreBook.instance;
     final city = Store.s('cityName', '');
     return snapshot(
       myId: myId.isEmpty ? ensureDeviceId() : myId,
       myNick: Store.s('nick', ''),
-      myTotal: s.totalInt,
+      myTotal: s.total,
       myAnswered: s.answered,
       real: real,
       myCity: city,
-      myAxes: {for (final e in s.byAxis.entries) e.key: e.value.round()},
+      myAxes: s.byAxis,
     );
   }
 }
@@ -478,17 +484,15 @@ class LeaderSync {
       {
         'device_id': id,
         'nick': Leaderboard.normalizeNick(Store.s('nick', '')),
-        // v1.22.1：账本是小数分，云端列是整数——上报时四舍五入
-        'total': s.totalInt.clamp(-100000, 100000),
+        // v1.22.3：云端 total 列已改 numeric，小数直存直取
+        'total': s.total.clamp(-100000.0, 100000.0),
         'right_cnt': s.right.clamp(0, 1000000),
         'wrong_cnt': s.wrong.clamp(0, 1000000),
         'answered': s.answered.clamp(0, 1000000),
         'city': Store.s('cityName', ''),
         // 各科得分（v1.21.0）。榜上那一行要显示「科技 +6 · 体育 +3」，
         // 就得把分科也一起报上来；空对象表示只报总分。
-        'axes': {
-          for (final e in s.byAxis.entries) e.key: e.value.round(),
-        },
+        'axes': s.byAxis,
         'app_version': kAppVersion,
       },
     ]);
@@ -540,7 +544,7 @@ class LeaderSync {
             return RankEntry(
               id: (q['device_id'] ?? '').toString(),
               nick: (q['nick'] ?? '').toString(),
-              total: (q['total'] is num) ? (q['total'] as num).round() : 0,
+              total: (q['total'] is num) ? (q['total'] as num).toDouble() : 0,
               answered: (q['answered'] is num)
                   ? (q['answered'] as num).round()
                   : 0,
