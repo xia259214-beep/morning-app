@@ -26,8 +26,8 @@ void main() {
         ),
       );
 
-  test('内置对手锚定在我附近，前面永远有人、后面永远有人', () {
-    for (final my in <int>[0, 7, 100, -30, 5000]) {
+  test('陪练锚定在我附近：低分时前面有人、后面有人', () {
+    for (final my in <int>[0, 7, 30, -30]) {
       final b = Leaderboard.builtIns(myTotal: my, myAnswered: 20);
       expect(b.length, 8);
       final ahead = b.where((e) => e.total > my).length;
@@ -36,6 +36,22 @@ void main() {
       expect(behind, greaterThan(0), reason: '我 $my 分时后面得有人被我超过');
       expect(b.every((e) => e.builtIn), isTrue, reason: '内置对手必须标注');
     }
+  });
+
+  test('陪练有水平上限，答到 60 分就能坐上第一', () {
+    // 没有上限的话他们永远 +30，第一名永远追不到
+    for (final my in <int>[60, 61, 100, 5000]) {
+      final b = Leaderboard.builtIns(myTotal: my, myAnswered: 200);
+      expect(b.any((e) => e.total > my), isFalse,
+          reason: '我 $my 分时不该还有人压在前面');
+    }
+    for (final i in <int>[0, 3, 7]) {
+      final b = Leaderboard.builtIns(myTotal: 5000, myAnswered: 200);
+      expect(b[i].total, lessThanOrEqualTo(60), reason: '陪练不该无限涨');
+    }
+    // 低分时上限不该插手：0 分时第一名还是 30
+    final low = Leaderboard.builtIns(myTotal: 0, myAnswered: 0);
+    expect(low.first.total, 30);
   });
 
   test('「阿禾」固定领先 3 分，够得着的目标', () {

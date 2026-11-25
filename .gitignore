@@ -47,3 +47,8 @@ app.*.map.json
 
 # 临时脚本与抓取的网页，不是源码
 /tmp/
+
+# 本机刷题/导题脚本：只在自己机器上用，不进公开仓库
+tools/grind_quiz.py
+tools/dump_bank.dart
+build/bank.json

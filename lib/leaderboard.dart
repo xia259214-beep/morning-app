@@ -162,6 +162,16 @@ int _offsetAt(int i) {
 String _nickAt(int i) =>
     i < kBuiltInNicks.length ? kBuiltInNicks[i] : '晨友${i + 1}';
 
+/// 每个陪练的水平上限：跟着你涨到这个分数就不动了。
+///
+/// 没有上限的话，他们永远比你高 30 分——你答一百道，第一名就跟着
+/// 涨到一百三。榜上永远差一点，那不是激励，是劝退：第一名根本追不到。
+/// 给个上限，答到 60 分就能坐到第一，之后守不守得住看你自己。
+/// 顺序与 kBuiltInOffsets 对齐（60 > 57 > 54 > 48 > 45 > 18 > 10 > 4）。
+const List<int> kBuiltInCeilings = <int>[60, 57, 54, 48, 45, 18, 10, 4];
+
+int _ceilingAt(int i) => i < kBuiltInCeilings.length ? kBuiltInCeilings[i] : 12;
+
 class Leaderboard {
   /// 伪装成内置对手时的 id 前缀，避免和真人设备 ID 撞车
   static const String builtInPrefix = 'builtin_';
@@ -187,9 +197,9 @@ class Leaderboard {
     return s.isEmpty ? '晨友' : (s.length > 12 ? s.substring(0, 12) : s);
   }
 
-  /// 生成内置对手。分数 = 我的分数 + 偏移，夹在数据库允许的范围内。
-  /// 不存在 SQLite/云端里，每次即时算，所以永远跟得上我的分数。
-  static List<RankEntry> builtIns({
+/// 生成内置对手。分数 = 我的分数 + 偏移，但不越过各自的水平上限。
+/// 不存在 SQLite/云端里，每次即时算，所以永远跟得上我的分数。
+static List<RankEntry> builtIns({
     required int myTotal,
     required int myAnswered,
     int count = 8,
@@ -197,7 +207,8 @@ class Leaderboard {
     final n = count < 0 ? 0 : count;
     return List<RankEntry>.generate(n, (i) {
       final raw = myTotal + _offsetAt(i);
-      final total = raw.clamp(-100000, 100000);
+      // 上限只在「涨过头」时起作用；我分数低的时候它还是贴着我的
+      final total = math.min(raw, _ceilingAt(i)).clamp(-100000, 100000);
       return RankEntry(
         id: '$builtInPrefix${_nickAt(i)}$i',
         nick: _nickAt(i),
