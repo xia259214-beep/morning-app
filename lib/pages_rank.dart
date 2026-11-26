@@ -506,11 +506,11 @@ class _RankPageState extends State<RankPage> {
                       size: 13, color: AppColor.sub),
                   const SizedBox(width: 5),
                   // 自己也是一位真人，别把它漏在计数外面——
-                  // 「0 位真人」会让答了题的人以为上报没生效。
+                  // 「0 位」会让答了题的人以为上报没生效。
                   Text(
                       b.realCount == 0
-                          ? '目前榜上就你 1 位真人 · ${b.builtInCount} 位陪练角色'
-                          : '${b.realCount + 1} 位真人（含你） · ${b.builtInCount} 位陪练角色',
+                          ? '目前榜上就你 1 位 · ${b.builtInCount} 位陪练角色'
+                          : '${b.realCount + 1} 位（含你） · ${b.builtInCount} 位陪练角色',
                       style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
                 ],
               ),
