@@ -16,7 +16,8 @@
 //     所以改成榜下一行说明：App 自带的陪练角色分数跟着你的水平走，
 //     不冒充真人。标签去掉，话不说谎。
 //
-// 真人 : 内置 = 1 : 1。没有真人时给 8 个内置对手，冷启动榜也不空。
+// v1.22.4 起全榜（含我）至少 20 人：19 份陪练档案各有各的城市、肝度和画风；
+// 真人多时陪练按 1:1 跟涨。冷启动榜也不空。
 // ============================================================================
 
 import 'dart:convert';
@@ -152,38 +153,57 @@ class LeaderSnapshot {
 }
 
 /// 内置对手：名字固定，分差锚定在自己附近。
-/// 前四个在上方，后四个在下方，保证「抬手就够得着」的目标一直存在。
+/// 上面 7 个是要翻过去的山，下面 12 个是垫底的底气，加上自己至少 20 人。
 ///
-/// 名字要像活人：短的两个字、长的五六个字，一半带点网络味儿——
-/// 真实榜单上就是这种画风，清一色两字雅号反而像编的。
-/// 「阿禾」固定 +3，是那个抬手就够得着的追超目标，别挪。
-const List<String> kBuiltInNicks = <String>[
-  '早八战神', '熬夜冠军', '干饭第一名', '卷不动了',
-  '阿禾', '退堂鼓选手', '摸鱼锦鲤', '山雀',
-];
+/// v1.22.4：从 8 人扩到 19 人，天花板整体抬高（第一名的封顶 400），
+/// 并且每人一份档案——城市、答题量倍数、对题率都不同，
+/// 榜上看起来是一群画风各异的活人，不是同一个模板复制 19 遍。
+class _Rival {
+  final String nick;
 
-/// 各自相对你总分的偏移。第 5 个「阿禾」= +3，就是概念图里那句
-/// 「再得 3 分就超过阿禾」——这个数刻意小，让人觉得下一题就能翻过去。
-const List<int> kBuiltInOffsets = <int>[30, 20, 12, 7, 3, -4, -9, -15];
+  /// 相对我总分的偏移（正 = 在我上面）
+  final int offset;
 
-int _offsetAt(int i) {
-  if (i < kBuiltInOffsets.length) return kBuiltInOffsets[i];
-  final k = i - kBuiltInOffsets.length;
-  return k.isEven ? 40 + k * 3 : -20 - k * 3;
+  /// 水平上限：跟着我涨到这个分数就不动了
+  final int ceiling;
+
+  /// 所在城市（榜单行上的小标签）
+  final String city;
+
+  /// 答题量倍数：狠人答得多，躺平的答得少
+  final double grind;
+
+  /// 对题占比（0~1）：决定他行的「对 N · 错 M」长什么样
+  final double acc;
+
+  const _Rival(this.nick, this.offset, this.ceiling, this.city, this.grind, this.acc);
 }
 
-String _nickAt(int i) =>
-    i < kBuiltInNicks.length ? kBuiltInNicks[i] : '晨友${i + 1}';
-
-/// 每个陪练的水平上限：跟着你涨到这个分数就不动了。
-///
-/// 没有上限的话，他们永远比你高 30 分——你答一百道，第一名就跟着
-/// 涨到一百三。榜上永远差一点，那不是激励，是劝退：第一名根本追不到。
-/// 给个上限，答到 60 分就能坐到第一，之后守不守得住看你自己。
-/// 顺序与 kBuiltInOffsets 对齐（60 > 57 > 54 > 48 > 45 > 18 > 10 > 4）。
-const List<int> kBuiltInCeilings = <int>[60, 57, 54, 48, 45, 18, 10, 4];
-
-int _ceilingAt(int i) => i < kBuiltInCeilings.length ? kBuiltInCeilings[i] : 12;
+/// 十九份陪练档案。顺序即偏移从高到低。
+/// 「阿禾」固定 +3，是那个抬手就够得着的追超目标，别挪。
+const List<_Rival> kRivals = <_Rival>[
+  // ---- 山上的人：天花板 400 / 260 / 180 / 130 / 95 / 65 / 50 ----
+  _Rival('卷王本王', 150, 400, '杭州', 2.4, 0.62),
+  _Rival('天不亮就起', 90, 260, '哈尔滨', 1.9, 0.60),
+  _Rival('六边形战士', 55, 180, '成都', 1.5, 0.66),
+  _Rival('榜一大哥', 35, 130, '广州', 1.2, 0.58),
+  _Rival('悄悄卷的人', 20, 95, '长沙', 1.1, 0.55),
+  _Rival('差一点就赢', 8, 65, '西安', 1.0, 0.53),
+  _Rival('阿禾', 3, 50, '苏州', 0.9, 0.55),
+  // ---- 山下的人：各有各的躺法 ----
+  _Rival('佛系打卡人', -2, 40, '昆明', 0.7, 0.48),
+  _Rival('摸鱼锦鲤', -6, 32, '三亚', 0.5, 0.46),
+  _Rival('退堂鼓选手', -12, 25, '兰州', 0.45, 0.43),
+  _Rival('熬夜冠军', -18, 20, '重庆', 0.95, 0.38),
+  _Rival('山雀', -25, 16, '厦门', 0.4, 0.45),
+  _Rival('干饭第一名', -35, 12, '佛山', 0.55, 0.36),
+  _Rival('早八战神', -48, 9, '郑州', 0.6, 0.34),
+  _Rival('躺平观察员', -65, 6, '贵阳', 0.3, 0.40),
+  _Rival('五分钟热度', -85, 4, '石家庄', 0.25, 0.34),
+  _Rival('手滑点错侠', -105, 3, '南宁', 0.35, 0.28),
+  _Rival('半夜背单词', -130, 2, '乌鲁木齐', 0.3, 0.26),
+  _Rival('路过的你', -160, 1, '呼和浩特', 0.2, 0.22),
+];
 
 class Leaderboard {
   /// 伪装成内置对手时的 id 前缀，避免和真人设备 ID 撞车
@@ -210,33 +230,44 @@ class Leaderboard {
     return s.isEmpty ? '晨友' : (s.length > 12 ? s.substring(0, 12) : s);
   }
 
-/// 生成内置对手。分数 = 我的分数 + 偏移，但不越过各自的水平上限。
+/// 生成内置对手。分数 = 我的分数 + 偏移，但不越过各自档案里的水平上限。
 /// 不存在 SQLite/云端里，每次即时算，所以永远跟得上我的分数。
+/// 每人一份档案：答题量按 [kRivals] 的 grind 倍数走，对/错按 acc 拆，
+/// 保证 right − wrong 正好等于总分（对得上账，榜上才像真的）。
+/// [count] 传 -1（默认）表示全部 19 位都上。
 static List<RankEntry> builtIns({
     required double myTotal,
     required int myAnswered,
-    int count = 8,
+    int count = -1,
   }) {
-    final n = count < 0 ? 0 : count;
+    final n = (count < 0 ? kRivals.length : count).clamp(0, kRivals.length);
     return List<RankEntry>.generate(n, (i) {
-      final raw = myTotal + _offsetAt(i);
-      // 上限只在「涨过头」时起作用；我分数低的时候它还是贴着我的
+      final r = kRivals[i];
+      final raw = myTotal + r.offset;
+      // 上限只在「涨过头」时起作用；我分数低的时候他还是贴着我的
       final total =
-          math.min(raw, _ceilingAt(i).toDouble()).clamp(-100000.0, 100000.0);
+          math.min(raw, r.ceiling.toDouble()).clamp(-100000.0, 100000.0);
       final totalInt = total.round();
+      // 答题量 = 我 × 他的肝度 + 一点底数（带点抖动，别让我 0 题时全员一个数）
+      final answered = (myAnswered * r.grind + 12 + (i * 5) % 9)
+          .round()
+          .clamp(0, 1000000);
+      // 有对错的题数：宁可多估也别小于 |总分|，否则对/错减不出这个总分；
+      // graded + 总分必须是偶数，right 才能正好是整数——差 1 就补 1
+      var graded = math.max((answered * 0.85).round(), totalInt.abs());
+      if ((graded + totalInt) % 2 != 0) graded++;
+      final right = ((graded + totalInt) ~/ 2).clamp(0, graded);
       return RankEntry(
-        id: '$builtInPrefix${_nickAt(i)}$i',
-        nick: _nickAt(i),
+        id: '$builtInPrefix${r.nick}$i',
+        nick: r.nick,
         total: total,
-        // 内置对手的答题数跟着分数走，看起来才像真人
-        answered: (myAnswered + _offsetAt(i) * 3).clamp(0, 1000000),
+        answered: answered,
         builtIn: true,
-        axes: splitTotal(_nickAt(i), total),
-        // 陪练的对/错也照着分数编一份：答对加、答错减，加起来正好是总分
-        rightCnt: ((myAnswered + _offsetAt(i) * 3) ~/ 2 + totalInt ~/ 2)
-            .clamp(0, 1000000),
-        wrongCnt: ((myAnswered + _offsetAt(i) * 3) ~/ 2 - totalInt ~/ 2)
-            .clamp(0, 1000000),
+        city: r.city,
+        axes: splitTotal(r.nick, total),
+        // 答对 − 答错 = 总分：right + wrong = graded，联立解出 right
+        rightCnt: right,
+        wrongCnt: graded - right,
       );
     });
   }
@@ -311,8 +342,10 @@ static List<RankEntry> builtIns({
     int myWrong = 0,
   }) {
     final reals = cleanReal(real, myId);
-    // 真人有几个就配几个内置对手；一个真人都没有时给 8 个，冷启动榜不空。
-    final builtInCount = reals.isEmpty ? 8 : reals.length;
+    // v1.22.4：真人再少，陪练也补到全榜（含我）至少 20 人——
+    // 补 19−真人 个，但真人多时陪练按 1:1 跟涨（档案只有 19 份，到顶为止）。
+    final builtInCount =
+        math.max(reals.length, 19 - reals.length).clamp(0, kRivals.length);
     final built = builtIns(
       myTotal: myTotal,
       myAnswered: myAnswered,

@@ -29,29 +29,30 @@ void main() {
   test('陪练锚定在我附近：低分时前面有人、后面有人', () {
     for (final my in <double>[0, 7, 30, -30]) {
       final b = Leaderboard.builtIns(myTotal: my, myAnswered: 20);
-      expect(b.length, 8);
+      expect(b.length, 19, reason: '加我自己全榜至少 20 人');
       final ahead = b.where((e) => e.total > my).length;
       final behind = b.where((e) => e.total < my).length;
-      expect(ahead, greaterThan(0), reason: '我 $my 分时前面得有目标');
+      expect(ahead, greaterThanOrEqualTo(7),
+          reason: '我 $my 分时山上 7 个人都还在');
       expect(behind, greaterThan(0), reason: '我 $my 分时后面得有人被我超过');
       expect(b.every((e) => e.builtIn), isTrue, reason: '内置对手必须标注');
     }
   });
 
-  test('陪练有水平上限，答到 60 分就能坐上第一', () {
-    // 没有上限的话他们永远 +30，第一名永远追不到
-    for (final my in <double>[60, 61, 100, 5000]) {
+  test('陪练有水平上限，答到 400 分就能坐上第一', () {
+    // 没有上限的话他们永远高你一截，第一名永远追不到
+    for (final my in <double>[400, 401, 1000, 5000]) {
       final b = Leaderboard.builtIns(myTotal: my, myAnswered: 200);
       expect(b.any((e) => e.total > my), isFalse,
           reason: '我 $my 分时不该还有人压在前面');
     }
-    for (final i in <int>[0, 3, 7]) {
+    for (final i in <int>[0, 5, 18]) {
       final b = Leaderboard.builtIns(myTotal: 5000, myAnswered: 200);
-      expect(b[i].total, lessThanOrEqualTo(60), reason: '陪练不该无限涨');
+      expect(b[i].total, lessThanOrEqualTo(400), reason: '陪练不该无限涨');
     }
-    // 低分时上限不该插手：0 分时第一名还是 30
+    // 低分时上限不该插手：0 分时第一名还是 0 + 150
     final low = Leaderboard.builtIns(myTotal: 0, myAnswered: 0);
-    expect(low.first.total, 30);
+    expect(low.first.total, 150);
   });
 
   test('「阿禾」固定领先 3 分，够得着的目标', () {
@@ -60,7 +61,7 @@ void main() {
     expect(ahe.total, 45);
   });
 
-  test('真人 : 内置 = 1 : 1；没有真人时给 8 个内置', () {
+  test('全榜（含我）至少 20 人；真人多时陪练按 1:1 跟涨', () {
     final empty = Leaderboard.snapshot(
       myId: myId,
       myNick: '我',
@@ -69,8 +70,8 @@ void main() {
       real: const [],
     );
     expect(empty.realCount, 0);
-    expect(empty.builtInCount, 8);
-    expect(empty.playerCount, 9, reason: '8 内置 + 我自己');
+    expect(empty.builtInCount, 19);
+    expect(empty.playerCount, 20, reason: '19 陪练 + 我自己');
 
     for (final n in <int>[1, 3, 8, 20]) {
       final s = Leaderboard.snapshot(
@@ -81,7 +82,27 @@ void main() {
         real: real(n),
       );
       expect(s.realCount, n);
-      expect(s.builtInCount, n, reason: '$n 个真人应配 $n 个内置');
+      expect(s.builtInCount, n >= 19 ? 19 : (n > 9 ? n : 19 - n),
+          reason: '$n 个真人应配 max(n, 19−n) 个内置（档案 19 份封顶）');
+      expect(s.playerCount, greaterThanOrEqualTo(20),
+          reason: '全榜含我至少 20 人');
+    }
+  });
+
+  test('每个陪练画风不同：城市不重样、答题量有梯度、对/错能减出总分', () {
+    final b = Leaderboard.builtIns(myTotal: 42, myAnswered: 30);
+    final cities = b.map((e) => e.city).toSet();
+    expect(cities.length, b.length, reason: '十九个人不该挤在同一个城市');
+
+    final answers = b.map((e) => e.answered).toList();
+    expect(answers.first, greaterThan(answers.last),
+        reason: '卷王的答题量该比路过的你多得多');
+
+    for (final e in b) {
+      expect(e.rightCnt - e.wrongCnt, e.total.round(),
+          reason: '${e.nick} 的对错账要能减出总分 ${e.total}');
+      expect(e.rightCnt, greaterThanOrEqualTo(0));
+      expect(e.wrongCnt, greaterThanOrEqualTo(0));
     }
   });
 
@@ -207,10 +228,10 @@ void main() {
     expect(a1, a2, reason: '刷新一次换一批科目，看着就像现编的');
 
     final combos = <String>{};
-    for (final n in kBuiltInNicks) {
-      combos.add((Leaderboard.splitTotal(n, 100).keys.toList()..sort()).join(','));
+    for (final r in kRivals) {
+      combos.add((Leaderboard.splitTotal(r.nick, 100).keys.toList()..sort()).join(','));
     }
-    expect(combos.length, greaterThan(1), reason: '八个人不该都是同样三科');
+    expect(combos.length, greaterThan(1), reason: '十九个人不该都是同样三科');
   });
 
   test('陪练角色的行都带分科，且总分对得上', () {

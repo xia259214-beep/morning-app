@@ -528,8 +528,9 @@ class _RankPageState extends State<RankPage> {
               ),
               const SizedBox(height: 6),
               Text(
-                '陪练角色是 App 自带的（分数跟着你的水平走，前面永远有人可追），'
-                '不冒充真人；真人分数由本人匿名上报，设备 ID 区分，不收手机号邮箱。',
+                '19 位陪练角色是 App 自带的（分数跟着你的水平走，最前面那位封顶 400 分，'
+                '每人城市、答题量、画风都不同），不冒充真人；'
+                '真人分数由本人匿名上报，设备 ID 区分，不收手机号邮箱。',
                 style: TextStyle(fontSize: 10, height: 1.6, color: AppColor.sub),
               ),
             ],
