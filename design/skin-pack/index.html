@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>晨序 MORNING · 外观与皮肤</title>
+<style>
+/* ── Page tokens ───────────────────────────────────────────── */
+:root{
+  color-scheme:light;
+  --paper:#F5F1E8; --paper-2:#EBE4D5; --paper-3:#E2D9C6;
+  --ink:#26241F; --ink-2:#57524A; --ink-3:#756E62;
+  --amber:#C2781F; --amber-2:#E0A24A;
+  --rule:#D6CDB9; --rule-soft:#E5DDCC;
+  --font-display:"Iowan Old Style","Palatino Linotype","Book Antiqua",Palatino,Georgia,"Songti SC","STSong","SimSun",serif;
+  --font-text:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  --font-num:"SF Mono","Cascadia Code","Consolas",ui-monospace,monospace;
+  --ease:cubic-bezier(.25,1,.5,1);
+}
+
+/* ── Skin tokens ─────────────────────────────────────────────
+   Attribute selector (not element-bound) so the same 8 tokens drive
+   BOTH the live phone preview (body[data-cta]) AND each picker card
+   (.skin[data-cta]). One definition, no duplication.
+   Skeleton is fixed: inset-only edges, dark bottom closing line,
+   near-zero cast shadow, scale-on-press. Switching only swaps values. */
+[data-cta="glass"]{
+  --cta-face:linear-gradient(180deg,rgba(255,255,255,.145) 0%,rgba(255,255,255,.095) 44%,rgba(255,255,255,.038) 100%);
+  --cta-fg:#F4F0E7; --cta-blur:blur(12px) saturate(128%);
+  --cta-edge:rgba(255,255,255,.20);
+  --cta-top:rgba(255,255,255,.30);
+  --cta-bottom:rgba(0,0,0,.46);
+  --cta-press:rgba(0,0,0,.30);
+  --cta-cast:0 3px 10px -7px rgba(0,0,0,.55);
+}
+[data-cta="frosted"]{
+  --cta-face:rgba(222,224,226,.19);
+  --cta-fg:#F4F0E7; --cta-blur:blur(20px) saturate(105%);
+  --cta-edge:rgba(255,255,255,.14);
+  --cta-top:rgba(255,255,255,.26);
+  --cta-bottom:rgba(0,0,0,.44);
+  --cta-press:rgba(0,0,0,.30);
+  --cta-cast:0 3px 10px -7px rgba(0,0,0,.5);
+}
+[data-cta="system"]{
+  --cta-face:linear-gradient(180deg,#4E4B44 0%,#45423B 58%,#3B3832 100%);
+  --cta-fg:#F6F2E9; --cta-blur:none;
+  --cta-edge:rgba(255,255,255,.10);
+  --cta-top:rgba(255,255,255,.15);
+  --cta-bottom:rgba(0,0,0,.52);
+  --cta-press:rgba(0,0,0,.32);
+  --cta-cast:0 2px 8px -6px rgba(0,0,0,.6);
+}
+[data-cta="well"]{
+  --cta-face:linear-gradient(180deg,rgba(0,0,0,.22) 0%,rgba(0,0,0,.08) 46%,rgba(255,255,255,.035) 100%);
+  --cta-fg:#EFEAE0; --cta-blur:blur(8px) saturate(110%);
+  --cta-edge:rgba(0,0,0,.34);
+  --cta-top:rgba(0,0,0,.55);
+  --cta-bottom:rgba(255,255,255,.16);
+  --cta-press:rgba(0,0,0,.36);
+  --cta-cast:0 0 0 0 rgba(0,0,0,0);
+}
+[data-cta="ghost"]{
+  --cta-face:linear-gradient(180deg,rgba(255,255,255,.05) 0%,rgba(255,255,255,.014) 100%);
+  --cta-fg:#F2EDE3; --cta-blur:blur(6px) saturate(108%);
+  --cta-edge:rgba(242,237,227,.40);
+  --cta-top:rgba(255,255,255,.18);
+  --cta-bottom:rgba(0,0,0,.38);
+  --cta-press:rgba(0,0,0,.28);
+  --cta-cast:0 0 0 0 rgba(0,0,0,0);
+}
+[data-cta="row"]{
+  --cta-face:transparent;
+  --cta-fg:#F2EDE3; --cta-blur:none;
+  --cta-edge:transparent;
+  --cta-top:transparent;
+  --cta-bottom:rgba(255,255,255,.26);
+  --cta-press:rgba(0,0,0,.12);
+  --cta-cast:0 0 0 0 rgba(0,0,0,0);
+}
+[data-cta="contrast"]{
+  --cta-face:#232220;
+  --cta-fg:#FFFFFF; --cta-blur:none;
+  --cta-edge:rgba(255,255,255,.78);
+  --cta-top:rgba(255,255,255,.28);
+  --cta-bottom:rgba(0,0,0,.70);
+  --cta-press:rgba(0,0,0,.42);
+  --cta-cast:0 0 0 0 rgba(0,0,0,0);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--font-text);font-size:16px;line-height:1.7;
+  -webkit-font-smoothing:antialiased}
+::selection{background:var(--amber-2);color:var(--ink)}
+.wrap{max-width:1080px;margin:0 auto;padding:0 clamp(20px,5vw,64px) 72px}
+
+/* ── Masthead ─────────────────────────────────────────────── */
+.mast{display:flex;justify-content:space-between;align-items:baseline;gap:16px;
+  padding:28px 0 12px;border-bottom:2px solid var(--ink)}
+.brand{font-family:var(--font-display);font-size:20px;letter-spacing:.01em}
+.brand small{font-family:var(--font-text);font-size:10px;letter-spacing:.24em;
+  text-transform:uppercase;color:var(--ink-3);margin-left:10px;vertical-align:2px}
+.mast-meta{font-family:var(--font-num);font-size:10.5px;letter-spacing:.06em;
+  color:var(--ink-2);text-align:right}
+.rule-thin{height:1px;background:var(--rule);border:0;margin:3px 0 0}
+
+.intro{padding:clamp(36px,6vw,64px) 0 clamp(28px,4vw,44px);max-width:660px}
+.eyebrow{font-family:var(--font-num);font-size:10.5px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--amber);margin:0 0 20px}
+.intro h1{font-family:var(--font-display);font-weight:400;
+  font-size:clamp(1.9rem,4.2vw,2.9rem);line-height:1.24;margin:0 0 18px}
+.intro p{font-size:14px;color:var(--ink-2);line-height:1.85;margin:0 0 20px}
+.now{display:inline-flex;align-items:baseline;gap:10px;font-family:var(--font-num);
+  font-size:11px;color:var(--ink-3);border-top:1px solid var(--rule);padding-top:12px}
+.now b{font-family:var(--font-text);font-size:14px;color:var(--ink);font-weight:600}
+.now span{background:var(--paper-2);padding:2px 7px;border-radius:3px;color:var(--ink-2)}
+
+/* ── Layout ───────────────────────────────────────────────── */
+.layout{display:grid;grid-template-columns:minmax(0,290px) minmax(0,1fr);
+  gap:clamp(28px,5vw,64px);align-items:start}
+.stage{display:flex;flex-direction:column;align-items:center;gap:12px}
+.phone{position:relative;width:262px;aspect-ratio:9/19.5;border-radius:36px;padding:9px;
+  background:linear-gradient(150deg,#3B3934,#1A1A18 55%,#33312D);
+  box-shadow:0 1px 0 rgba(255,255,255,.22) inset,0 22px 44px rgba(38,36,31,.24),0 4px 10px rgba(38,36,31,.16)}
+.screen{position:relative;height:100%;border-radius:28px;overflow:hidden;
+  background:
+    radial-gradient(ellipse 120% 34% at 50% 86%,rgba(224,162,74,.15),transparent 70%),
+    radial-gradient(circle at 78% 6%,rgba(224,162,74,.28),transparent 44%),
+    radial-gradient(circle at 12% 88%,rgba(224,162,74,.08),transparent 46%),
+    linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px),
+    linear-gradient(165deg,#23241F,#161714);
+  background-size:auto,auto,auto,18px 18px,18px 18px,auto;
+  padding:16px 17px;display:flex;flex-direction:column;color:#F2EDE3}
+.notch{position:absolute;top:9px;left:50%;transform:translateX(-50%);
+  width:72px;height:19px;border-radius:12px;background:#0D0E0C;z-index:5}
+.statusbar{display:flex;justify-content:space-between;font-family:var(--font-num);
+  font-size:9px;letter-spacing:.04em;color:rgba(242,237,227,.62);margin-top:4px}
+.ph-brand{font-family:var(--font-display);font-size:13px;letter-spacing:.08em;
+  margin-top:30px;color:rgba(242,237,227,.82)}
+.ph-brand small{font-family:var(--font-num);font-size:8px;letter-spacing:.2em;
+  color:var(--amber-2);display:block;margin-top:3px}
+.ph-hi{font-family:var(--font-display);font-size:34px;line-height:1.1;margin-top:22px}
+.ph-date{font-family:var(--font-num);font-size:9.5px;letter-spacing:.06em;
+  color:rgba(242,237,227,.5);margin-top:6px}
+.ph-quote{font-size:11px;line-height:1.7;color:rgba(242,237,227,.66);margin-top:14px;max-width:20ch}
+.ph-card{margin-top:auto;border-top:1px solid rgba(255,255,255,.14);
+  border-bottom:1px solid rgba(255,255,255,.14);padding:12px 0;margin-bottom:14px}
+.ph-card .k{font-family:var(--font-num);font-size:8.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--amber-2)}
+.ph-card .v{font-size:11.5px;margin-top:4px;color:rgba(242,237,227,.9)}
+.ph-card .v span{color:rgba(242,237,227,.45);font-family:var(--font-num);font-size:9px;margin-right:7px}
+
+/* Product CTA — the ONE skeleton every skin shares */
+.ph-cta{position:relative;display:flex;align-items:center;justify-content:space-between;
+  width:100%;height:48px;padding:0 18px;border:0;outline:none;cursor:pointer;
+  border-radius:14px;background:var(--cta-face);color:var(--cta-fg);
+  font-family:var(--font-text);font-size:13.5px;font-weight:600;letter-spacing:.035em;
+  -webkit-backdrop-filter:var(--cta-blur);backdrop-filter:var(--cta-blur);
+  box-shadow:
+    inset 0 0 0 1px var(--cta-edge),
+    inset 0 1px 0 var(--cta-top),
+    inset 0 -1px 0 var(--cta-bottom),
+    var(--cta-cast);
+  transform:scale(1);
+  transition:transform 160ms var(--ease),box-shadow 160ms var(--ease),
+    filter 160ms var(--ease),background 280ms var(--ease),color 280ms var(--ease)}
+.ph-cta:hover:not(.down){filter:brightness(1.035)}
+.ph-cta:focus-visible{outline:2px solid var(--amber-2);outline-offset:4px}
+.cta-label,.cta-arrow{position:relative;z-index:2}
+.cta-arrow{font-size:15px;font-weight:400;line-height:1;opacity:.7;
+  transition:transform 160ms var(--ease)}
+.ph-cta.down{transform:scale(.972);
+  box-shadow:
+    inset 0 0 0 1px var(--cta-edge),
+    inset 0 1px 0 rgba(255,255,255,.06),
+    inset 0 -1px 0 var(--cta-bottom),
+    inset 0 6px 14px var(--cta-press),
+    0 1px 3px -2px rgba(0,0,0,.45);
+  filter:brightness(.94)}
+.ph-cta.rebound{animation:ctaReb 320ms cubic-bezier(.22,1,.36,1)}
+@keyframes ctaReb{0%{transform:scale(.972)}62%{transform:scale(1.006)}100%{transform:scale(1)}}
+.ph-cta.rebound .cta-arrow{animation:arrowNudge 320ms var(--ease)}
+@keyframes arrowNudge{0%{transform:translateX(0)}45%{transform:translateX(3px)}100%{transform:translateX(0)}}
+.ph-read{font-family:var(--font-num);font-size:8.5px;letter-spacing:.04em;
+  color:rgba(242,237,227,.4);margin-top:10px;text-align:center;min-height:12px}
+.ph-tabs{display:flex;justify-content:space-around;margin-top:8px;padding-top:10px;
+  border-top:1px solid rgba(255,255,255,.09)}
+.ph-tabs span{font-size:9px;color:rgba(242,237,227,.35);letter-spacing:.08em}
+.ph-tabs span:first-child{color:var(--amber-2)}
+.stage-cap{font-family:var(--font-num);font-size:9.5px;letter-spacing:.1em;
+  color:var(--ink-3);text-align:center}
+
+/* ── Picker ───────────────────────────────────────────────── */
+.picker-head{display:flex;justify-content:space-between;align-items:baseline;
+  border-bottom:1px solid var(--rule);padding-bottom:10px;gap:16px}
+.picker-head h2{font-family:var(--font-display);font-weight:400;font-size:21px;margin:0}
+.reset{appearance:none;background:none;border:1px solid var(--rule);border-radius:999px;
+  padding:5px 12px;font-family:var(--font-text);font-size:11px;color:var(--ink-3);
+  cursor:pointer;transition:color var(--ease) 140ms,border-color var(--ease) 140ms}
+.reset:hover{color:var(--ink);border-color:var(--ink-3)}
+.reset:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.picker-note{font-size:12px;color:var(--ink-3);margin:12px 0 18px}
+.skins{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.skin{text-align:left;appearance:none;background:var(--paper-2);
+  border:1px solid var(--rule);border-radius:12px;padding:12px;cursor:pointer;
+  font-family:var(--font-text);color:var(--ink);
+  transition:border-color 140ms var(--ease),background 140ms var(--ease),transform 140ms var(--ease)}
+.skin:hover{border-color:var(--ink-3);transform:translateY(-1px)}
+.skin.on{border-color:var(--amber);box-shadow:0 0 0 1px var(--amber) inset;background:#F8F3E7}
+.skin:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.s-prev{display:block;height:44px;border-radius:8px;padding:9px;margin-bottom:11px;
+  background:linear-gradient(165deg,#23241F,#161714)}
+.s-prev i{display:block;height:26px;border-radius:7px;background:var(--cta-face);
+  -webkit-backdrop-filter:var(--cta-blur);backdrop-filter:var(--cta-blur);
+  box-shadow:
+    inset 0 0 0 1px var(--cta-edge),
+    inset 0 1px 0 var(--cta-top),
+    inset 0 -1px 0 var(--cta-bottom),
+    var(--cta-cast)}
+.s-name{display:block;font-size:13px;font-weight:600;letter-spacing:.02em}
+.s-fam{display:inline-block;font-family:var(--font-num);font-size:9px;letter-spacing:.1em;
+  color:var(--amber);margin-left:7px;vertical-align:1px}
+.s-desc{display:block;font-size:11px;color:var(--ink-2);line-height:1.55;margin-top:5px;min-height:34px}
+.s-meta{display:flex;justify-content:space-between;align-items:baseline;
+  font-family:var(--font-num);font-size:9px;color:var(--ink-3);margin-top:8px;
+  border-top:1px solid var(--rule);padding-top:7px}
+.s-cur{color:var(--amber);font-weight:600;visibility:hidden}
+.skin.on .s-cur{visibility:visible}
+.status{font-family:var(--font-num);font-size:10.5px;color:var(--ink-3);
+  margin-top:16px;border-left:2px solid var(--amber);padding-left:10px;min-height:18px}
+
+footer{margin-top:clamp(40px,7vw,80px);border-top:2px solid var(--ink);
+  padding-top:12px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  font-family:var(--font-num);font-size:9.5px;letter-spacing:.04em;color:var(--ink-3)}
+
+@media(max-width:860px){
+  .layout{grid-template-columns:1fr}
+  .stage{justify-self:center}
+  .skins{grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){
+  .ph-cta,.ph-cta.down,.ph-cta.rebound,.ph-cta.rebound .cta-arrow{
+    transform:scale(1)!important;animation:none!important;transition:none!important}
+  .skin:hover{transform:none}
+}
+</style>
+</head>
+<body data-cta="glass">
+<div class="wrap">
+  <header class="mast">
+    <div class="brand">晨序 <small>MORNING</small></div>
+    <div class="mast-meta">Appearance / 外观<br>Skin Pack v1.0 · 7 variants</div>
+  </header>
+  <hr class="rule-thin">
+
+  <section class="intro">
+    <p class="eyebrow">Settings / Appearance</p>
+    <h1>给「开始今日」<br>选一身皮肤。</h1>
+    <p>七档材质共用同一副骨架：一个形状、只走 inset 的边缘、原地收缩的按压反馈。切换只改 8 个 token，不动布局、不动交互、不加层。选择保存在本机，皮肤 id 可直接写进 APP 设置项。</p>
+    <div class="now">当前皮肤 <b id="nowName">液态玻璃</b> <span id="nowId">glass</span></div>
+  </section>
+
+  <main class="layout">
+    <div class="stage">
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="statusbar"><span>9:41</span><span>●● &nbsp;▮</span></div>
+          <div class="ph-brand">晨序<small>MORNING</small></div>
+          <div class="ph-hi">早安，<br>今天也<br>慢慢来。</div>
+          <div class="ph-date">11.25 &nbsp;WED &nbsp;·&nbsp; 07:24</div>
+          <div class="ph-quote">把第一件事留给光线，其余的按顺序来。</div>
+          <div class="ph-card">
+            <div class="k">First / 第一件事</div>
+            <div class="v"><span>07:30</span>打开窗，等一分钟</div>
+          </div>
+          <button type="button" class="ph-cta" id="cta" aria-label="晨序首页主按钮：开始今日">
+            <span class="cta-label">开始今日</span><span class="cta-arrow" aria-hidden="true">→</span>
+          </button>
+          <div class="ph-read" id="phRead" role="status">默认态 · 系统表面</div>
+          <div class="ph-tabs"><span>今日</span><span>序列</span><span>我的</span></div>
+        </div>
+      </div>
+      <div class="stage-cap">MORNING / HOME &nbsp;·&nbsp; 9 : 19.5 &nbsp;·&nbsp; 实时预览</div>
+    </div>
+
+    <section class="picker" aria-labelledby="pickerTitle">
+      <div class="picker-head">
+        <h2 id="pickerTitle">按钮外观</h2>
+        <button type="button" class="reset" id="reset">恢复默认</button>
+      </div>
+      <p class="picker-note">点选任意一档，左侧按钮立即切换；按住按钮可看按压反馈。</p>
+      <div class="skins" id="skins" role="group" aria-label="按钮皮肤选择"></div>
+      <div class="status" id="status" role="status">已载入 7 档皮肤</div>
+    </section>
+  </main>
+
+  <footer>
+    <span>晨序 MORNING · Skin Pack v1.0 &nbsp;—&nbsp; 纯 CSS 皮肤，无位图素材、无外部依赖</span>
+    <span>选择持久化 key：<code>morning.skin</code> &nbsp;·&nbsp; 默认 <code>glass</code> &nbsp;·&nbsp; 七档均 ≥ 9:1</span>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var SKINS=[
+    {id:'glass',    name:'液态玻璃', fam:'玻璃', source:'Apple HIG · clear',      contrast:'≈ 9:1',  desc:'中性半透明透镜，顶亮底暗，12px 模糊。'},
+    {id:'frosted',  name:'磨砂',     fam:'玻璃', source:'Apple HIG · regular',    contrast:'≈ 9:1',  desc:'均匀雾面而非透镜，20px 模糊、近中性饱和。'},
+    {id:'system',   name:'系统填充', fam:'实心', source:'One UI · gray contained',contrast:'≈ 9:1',  desc:'中性石墨灰单层表面，无模糊、无层叠。'},
+    {id:'well',     name:'内凹',     fam:'实心', source:'One UI 7 / HyperOS 槽',  contrast:'≈ 12:1', desc:'顶/底光反转，上壁背光、下壁受光，读成凹槽。'},
+    {id:'ghost',    name:'幽灵描边', fam:'极简', source:'描边款（已认可）',       contrast:'≈ 13:1', desc:'近零填充 + inset 细描边，投影归零。'},
+    {id:'row',      name:'列表行',   fam:'极简', source:'iOS 列表行',             contrast:'≈ 13:1', desc:'填充、边框、顶线全透明，只剩一条底线。'},
+    {id:'contrast', name:'高对比',   fam:'系统', source:'HIG · Increase Contrast',contrast:'≈ 16:1', desc:'不透明深底 + 纯白字 + 清晰描边，无模糊。'}
+  ];
+  var DEFAULT='glass', KEY='morning.skin';
+  var body=document.body, box=document.getElementById('skins');
+  var nowName=document.getElementById('nowName'), nowId=document.getElementById('nowId');
+  var status=document.getElementById('status');
+  var cta=document.getElementById('cta'), ctaRead=document.getElementById('phRead');
+
+  function el(tag,cls,txt){
+    var n=document.createElement(tag);
+    if(cls)n.className=cls;
+    if(txt!==undefined && txt!==null)n.textContent=txt;
+    return n;
+  }
+  function find(id){
+    for(var i=0;i<SKINS.length;i++){if(SKINS[i].id===id)return SKINS[i];}
+    return null;
+  }
+
+  SKINS.forEach(function(s){
+    var card=el('button','skin');
+    card.type='button';
+    card.setAttribute('data-cta',s.id);
+    card.setAttribute('aria-pressed','false');
+    card.setAttribute('aria-label',s.name+'，'+s.fam+'族，'+s.desc+' 对比度 '+s.contrast);
+
+    var prev=el('span','s-prev');
+    prev.appendChild(el('i'));
+    card.appendChild(prev);
+
+    var line=el('span');
+    line.appendChild(el('span','s-name',s.name));
+    line.appendChild(el('span','s-fam',s.fam));
+    card.appendChild(line);
+    card.appendChild(el('span','s-desc',s.desc));
+
+    var meta=el('span','s-meta');
+    meta.appendChild(el('span','',s.source));
+    meta.appendChild(el('span','s-cur','当前'));
+    card.appendChild(meta);
+
+    card.addEventListener('click',function(){apply(s.id,true);});
+    box.appendChild(card);
+  });
+
+  var cards=box.querySelectorAll('.skin');
+
+  function pulse(){
+    cta.classList.remove('rebound'); void cta.offsetWidth; cta.classList.add('rebound');
+    if(cta._t)cta._t.forEach(clearTimeout);
+    var ts=[]; cta._t=ts;
+    ts.push(setTimeout(function(){ctaRead.textContent='按下 · 原地收缩 .972';},0));
+    ts.push(setTimeout(function(){ctaRead.textContent='释放 · 阻尼回位 320ms';},130));
+    ts.push(setTimeout(function(){ctaRead.textContent='默认态 · 系统表面';cta.classList.remove('rebound');},480));
+  }
+
+  function apply(id,fromUser){
+    var s=find(id);
+    if(!s)return;
+    body.setAttribute('data-cta',id);
+    nowName.textContent=s.name;
+    nowId.textContent=s.id;
+    for(var i=0;i<cards.length;i++){
+      var on=cards[i].getAttribute('data-cta')===id;
+      cards[i].setAttribute('aria-pressed',on?'true':'false');
+      if(on)cards[i].classList.add('on');else cards[i].classList.remove('on');
+    }
+    try{localStorage.setItem(KEY,id);}catch(e){}
+    if(fromUser){
+      status.textContent='已切换 · '+s.name+'（'+s.id+'）· 对比度 '+s.contrast+' · 已保存到本机';
+      pulse();
+    }else{
+      status.textContent='已载入 · '+s.name+'（'+s.id+'）· 共 7 档可选';
+    }
+  }
+
+  document.getElementById('reset').addEventListener('click',function(){apply(DEFAULT,true);});
+
+  cta.addEventListener('pointerdown',function(){
+    cta.classList.add('down');ctaRead.textContent='按下 · 原地收缩 .972';
+  });
+  cta.addEventListener('pointerup',function(){
+    if(!cta.classList.contains('down'))return;
+    cta.classList.remove('down');pulse();
+  });
+  cta.addEventListener('pointercancel',function(){cta.classList.remove('down');});
+  cta.addEventListener('pointerleave',function(){
+    if(cta.classList.contains('down')){cta.classList.remove('down');pulse();}
+  });
+  cta.addEventListener('keydown',function(e){
+    if((e.key===' '||e.key==='Enter')&&!e.repeat){e.preventDefault();cta.classList.add('down');}
+  });
+  cta.addEventListener('keyup',function(e){
+    if(e.key===' '||e.key==='Enter'){e.preventDefault();cta.classList.remove('down');pulse();}
+  });
+
+  var saved=null;
+  try{saved=localStorage.getItem(KEY);}catch(e){}
+  apply(find(saved)?saved:DEFAULT,false);
+})();
+</script>
+</body>
+</html>

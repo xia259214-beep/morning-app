@@ -1,0 +1,156 @@
+{
+  "schema": "morning.skin-pack/1.0",
+  "app": "晨序 MORNING",
+  "component": "ph-cta / 开始今日",
+  "version": "1.0.0",
+  "default": "glass",
+  "storageKey": "morning.skin",
+  "skeleton": {
+    "shape": "48px height · 14px radius · single DOM shape",
+    "edges": "inset 0 0 0 1px var(--cta-edge), inset 0 1px 0 var(--cta-top), inset 0 -1px 0 var(--cta-bottom)",
+    "cast": "var(--cta-cast) — near-zero; 4 variants set it to a fully transparent shadow",
+    "press": "transform: scale(.972); inset 0 6px 14px var(--cta-press)",
+    "rebound": "320ms cubic-bezier(.22,1,.36,1), peak scale(1.006)",
+    "lightless": true,
+    "outwardRim": false,
+    "translateY": false
+  },
+  "tokens": [
+    "--cta-face",
+    "--cta-fg",
+    "--cta-blur",
+    "--cta-edge",
+    "--cta-top",
+    "--cta-bottom",
+    "--cta-press",
+    "--cta-cast"
+  ],
+  "skins": [
+    {
+      "id": "glass",
+      "name": "液态玻璃",
+      "family": "玻璃",
+      "source": "Apple HIG · clear / Liquid Glass",
+      "contrast": "9:1",
+      "note": "中性半透明透镜；顶亮底暗；12px 模糊",
+      "tokens": {
+        "--cta-face": "linear-gradient(180deg,rgba(255,255,255,.145) 0%,rgba(255,255,255,.095) 44%,rgba(255,255,255,.038) 100%)",
+        "--cta-fg": "#F4F0E7",
+        "--cta-blur": "blur(12px) saturate(128%)",
+        "--cta-edge": "rgba(255,255,255,.20)",
+        "--cta-top": "rgba(255,255,255,.30)",
+        "--cta-bottom": "rgba(0,0,0,.46)",
+        "--cta-press": "rgba(0,0,0,.30)",
+        "--cta-cast": "0 3px 10px -7px rgba(0,0,0,.55)"
+      }
+    },
+    {
+      "id": "frosted",
+      "name": "磨砂",
+      "family": "玻璃",
+      "source": "Apple HIG · regular material",
+      "contrast": "9:1",
+      "note": "均匀雾面非透镜；20px 模糊、近中性饱和",
+      "tokens": {
+        "--cta-face": "rgba(222,224,226,.19)",
+        "--cta-fg": "#F4F0E7",
+        "--cta-blur": "blur(20px) saturate(105%)",
+        "--cta-edge": "rgba(255,255,255,.14)",
+        "--cta-top": "rgba(255,255,255,.26)",
+        "--cta-bottom": "rgba(0,0,0,.44)",
+        "--cta-press": "rgba(0,0,0,.30)",
+        "--cta-cast": "0 3px 10px -7px rgba(0,0,0,.5)"
+      }
+    },
+    {
+      "id": "system",
+      "name": "系统填充",
+      "family": "实心",
+      "source": "Samsung One UI · gray contained",
+      "contrast": "9:1",
+      "note": "中性石墨灰单层；无模糊、无层叠",
+      "tokens": {
+        "--cta-face": "linear-gradient(180deg,#4E4B44 0%,#45423B 58%,#3B3832 100%)",
+        "--cta-fg": "#F6F2E9",
+        "--cta-blur": "none",
+        "--cta-edge": "rgba(255,255,255,.10)",
+        "--cta-top": "rgba(255,255,255,.15)",
+        "--cta-bottom": "rgba(0,0,0,.52)",
+        "--cta-press": "rgba(0,0,0,.32)",
+        "--cta-cast": "0 2px 8px -6px rgba(0,0,0,.6)"
+      }
+    },
+    {
+      "id": "well",
+      "name": "内凹",
+      "family": "实心",
+      "source": "One UI 7 / HyperOS slider track",
+      "contrast": "12:1",
+      "note": "顶/底光反转：上壁背光、下壁受光，读成凹槽",
+      "tokens": {
+        "--cta-face": "linear-gradient(180deg,rgba(0,0,0,.22) 0%,rgba(0,0,0,.08) 46%,rgba(255,255,255,.035) 100%)",
+        "--cta-fg": "#EFEAE0",
+        "--cta-blur": "blur(8px) saturate(110%)",
+        "--cta-edge": "rgba(0,0,0,.34)",
+        "--cta-top": "rgba(0,0,0,.55)",
+        "--cta-bottom": "rgba(255,255,255,.16)",
+        "--cta-press": "rgba(0,0,0,.36)",
+        "--cta-cast": "0 0 0 0 rgba(0,0,0,0)"
+      }
+    },
+    {
+      "id": "ghost",
+      "name": "幽灵描边",
+      "family": "极简",
+      "source": "用户认可档，保留精修",
+      "contrast": "13:1",
+      "note": "近零填充 + inset 细描边；投影归零",
+      "tokens": {
+        "--cta-face": "linear-gradient(180deg,rgba(255,255,255,.05) 0%,rgba(255,255,255,.014) 100%)",
+        "--cta-fg": "#F2EDE3",
+        "--cta-blur": "blur(6px) saturate(108%)",
+        "--cta-edge": "rgba(242,237,227,.40)",
+        "--cta-top": "rgba(255,255,255,.18)",
+        "--cta-bottom": "rgba(0,0,0,.38)",
+        "--cta-press": "rgba(0,0,0,.28)",
+        "--cta-cast": "0 0 0 0 rgba(0,0,0,0)"
+      }
+    },
+    {
+      "id": "row",
+      "name": "列表行",
+      "family": "极简",
+      "source": "iOS list row / One UI list item",
+      "contrast": "13:1",
+      "note": "填充、边框、顶线、投影全透明，只剩底部分隔线",
+      "tokens": {
+        "--cta-face": "transparent",
+        "--cta-fg": "#F2EDE3",
+        "--cta-blur": "none",
+        "--cta-edge": "transparent",
+        "--cta-top": "transparent",
+        "--cta-bottom": "rgba(255,255,255,.26)",
+        "--cta-press": "rgba(0,0,0,.12)",
+        "--cta-cast": "0 0 0 0 rgba(0,0,0,0)"
+      }
+    },
+    {
+      "id": "contrast",
+      "name": "高对比",
+      "family": "系统",
+      "source": "Apple HIG · Increase Contrast + Reduce Transparency",
+      "contrast": "16:1",
+      "note": "不透明深底 + 纯白字 + 清晰描边；无模糊无投影",
+      "tokens": {
+        "--cta-face": "#232220",
+        "--cta-fg": "#FFFFFF",
+        "--cta-blur": "none",
+        "--cta-edge": "rgba(255,255,255,.78)",
+        "--cta-top": "rgba(255,255,255,.28)",
+        "--cta-bottom": "rgba(0,0,0,.70)",
+        "--cta-press": "rgba(0,0,0,.42)",
+        "--cta-cast": "0 0 0 0 rgba(0,0,0,0)"
+      }
+    }
+  ]
+}

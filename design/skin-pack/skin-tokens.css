@@ -1,0 +1,90 @@
+/* 晨序 MORNING · Skin Pack v1.0
+   Button skin tokens — import this file directly in the APP project.
+   Selector is attribute-based, not element-bound: set data-cta on ANY
+   container (Activity root / WebView root / a preview card) and the
+   8 tokens below take effect on that subtree.
+
+   Skeleton (defined once in the component CSS, NEVER per skin):
+     box-shadow: inset 0 0 0 1px var(--cta-edge),
+                 inset 0 1px 0 var(--cta-top),
+                 inset 0 -1px 0 var(--cta-bottom),
+                 var(--cta-cast);
+     background: var(--cta-face);
+     color: var(--cta-fg);
+     backdrop-filter: var(--cta-blur);
+     press: transform scale(.972) + inset 0 6px 14px var(--cta-press)
+     rebound: 320ms cubic-bezier(.22,1,.36,1), peak 1.006
+
+   All 7 variants: 1 shape, inset-only edges, zero emitted light,
+   zero outward white rim, zero translateY. Contrast >= 9:1. */
+
+[data-cta="glass"]{
+  /* Apple HIG · clear / Liquid Glass lens */
+  --cta-face:linear-gradient(180deg,rgba(255,255,255,.145) 0%,rgba(255,255,255,.095) 44%,rgba(255,255,255,.038) 100%);
+  --cta-fg:#F4F0E7; --cta-blur:blur(12px) saturate(128%);
+  --cta-edge:rgba(255,255,255,.20);
+  --cta-top:rgba(255,255,255,.30);
+  --cta-bottom:rgba(0,0,0,.46);
+  --cta-press:rgba(0,0,0,.30);
+  --cta-cast:0 3px 10px -7px rgba(0,0,0,.55);
+}
+[data-cta="frosted"]{
+  /* Apple HIG · regular material, uniform diffuse haze */
+  --cta-face:rgba(222,224,226,.19);
+  --cta-fg:#F4F0E7; --cta-blur:blur(20px) saturate(105%);
+  --cta-edge:rgba(255,255,255,.14);
+  --cta-top:rgba(255,255,255,.26);
+  --cta-bottom:rgba(0,0,0,.44);
+  --cta-press:rgba(0,0,0,.30);
+  --cta-cast:0 3px 10px -7px rgba(0,0,0,.5);
+}
+[data-cta="system"]{
+  /* Samsung One UI · gray contained, flat single surface */
+  --cta-face:linear-gradient(180deg,#4E4B44 0%,#45423B 58%,#3B3832 100%);
+  --cta-fg:#F6F2E9; --cta-blur:none;
+  --cta-edge:rgba(255,255,255,.10);
+  --cta-top:rgba(255,255,255,.15);
+  --cta-bottom:rgba(0,0,0,.52);
+  --cta-press:rgba(0,0,0,.32);
+  --cta-cast:0 2px 8px -6px rgba(0,0,0,.6);
+}
+[data-cta="well"]{
+  /* One UI 7 / HyperOS slider track — reversed light direction */
+  --cta-face:linear-gradient(180deg,rgba(0,0,0,.22) 0%,rgba(0,0,0,.08) 46%,rgba(255,255,255,.035) 100%);
+  --cta-fg:#EFEAE0; --cta-blur:blur(8px) saturate(110%);
+  --cta-edge:rgba(0,0,0,.34);
+  --cta-top:rgba(0,0,0,.55);
+  --cta-bottom:rgba(255,255,255,.16);
+  --cta-press:rgba(0,0,0,.36);
+  --cta-cast:0 0 0 0 rgba(0,0,0,0);
+}
+[data-cta="ghost"]{
+  /* Approved outline variant — near-zero fill, inset hairline */
+  --cta-face:linear-gradient(180deg,rgba(255,255,255,.05) 0%,rgba(255,255,255,.014) 100%);
+  --cta-fg:#F2EDE3; --cta-blur:blur(6px) saturate(108%);
+  --cta-edge:rgba(242,237,227,.40);
+  --cta-top:rgba(255,255,255,.18);
+  --cta-bottom:rgba(0,0,0,.38);
+  --cta-press:rgba(0,0,0,.28);
+  --cta-cast:0 0 0 0 rgba(0,0,0,0);
+}
+[data-cta="row"]{
+  /* iOS list row — only a bottom rule survives */
+  --cta-face:transparent;
+  --cta-fg:#F2EDE3; --cta-blur:none;
+  --cta-edge:transparent;
+  --cta-top:transparent;
+  --cta-bottom:rgba(255,255,255,.26);
+  --cta-press:rgba(0,0,0,.12);
+  --cta-cast:0 0 0 0 rgba(0,0,0,0);
+}
+[data-cta="contrast"]{
+  /* Apple HIG · Increase Contrast + Reduce Transparency */
+  --cta-face:#232220;
+  --cta-fg:#FFFFFF; --cta-blur:none;
+  --cta-edge:rgba(255,255,255,.78);
+  --cta-top:rgba(255,255,255,.28);
+  --cta-bottom:rgba(0,0,0,.70);
+  --cta-press:rgba(0,0,0,.42);
+  --cta-cast:0 0 0 0 rgba(0,0,0,0);
+}
