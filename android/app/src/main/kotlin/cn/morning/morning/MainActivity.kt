@@ -906,13 +906,9 @@ class MainActivity : FlutterActivity() {
             // v1.12.1：从引擎可用音色里挑中文女声。为什么挑：真实新闻没有随包真人录音，
             // 会退回系统 TTS；而小米等引擎的默认音色单薄刺耳（用户反馈「太空、太刺耳」）。
             // 挑不出来时保持引擎默认，宁可不动也别换一个更差的。
-            try {
-                val picked: Voice? = pickBestVoice(engine)
-                if (picked != null && engine.setVoice(picked) == TextToSpeech.SUCCESS) {
-                    Log.i("MorningTts", "voice=${picked.name} quality=${picked.quality}")
-                }
-            } catch (e: Exception) {
-            }
+            // v1.22.7：挑音色挪到 setLanguage 体检之后——setLanguage 会把音色
+            // 重置回该语言的默认，先 setVoice 再 setLanguage 等于白挑一遍，
+            // 这就是「好声音又变回机械音」的根源：挑了个寂寞。
 
             // 合成进度监听：真机排查全靠它。onStart 出现说明引擎接单了，
             // onError 带错误码说明引擎接单但合成失败（缺语音包最常见）。
@@ -964,6 +960,18 @@ class MainActivity : FlutterActivity() {
                 ttsState = TTS_NO_CHINESE
                 ttsDetail = "引擎 $name 缺少中文语音数据"
                 return@TextToSpeech
+            }
+
+            // v1.22.7：setLanguage 体检完再挑音色——顺序不能反，
+            // setLanguage 会把 setVoice 的结果冲回默认音色。
+            try {
+                val picked: Voice? = pickBestVoice(engine)
+                if (picked != null && engine.setVoice(picked) == TextToSpeech.SUCCESS) {
+                    Log.i("MorningTts", "voice=${picked.name} quality=${picked.quality}")
+                } else {
+                    Log.i("MorningTts", "voice=default（没有合适的本地中文音色）")
+                }
+            } catch (e: Exception) {
             }
 
             ttsState = TTS_READY
@@ -1018,17 +1026,29 @@ class MainActivity : FlutterActivity() {
             it.locale?.language == "zh" && !it.isNetworkConnectionRequired
         }
         if (zh.isEmpty()) return null
+        // v1.22.7：候选先按音质降序排——同一个女声名下常有多个档位，
+        // 不排序的话 firstOrNull 会挑到音质最差的那档。
+        val byQuality = zh.sortedByDescending { it.quality }
+        // 诊断：把引擎的全部音色（含联网音色）都打出来，真机排查全靠它
+        Log.i("MorningTts", "all voices=${all.joinToString { v -> "${v.name}|${v.locale}|q${v.quality}|net=${v.isNetworkConnectionRequired}" }}")
         // 讯飞/小米/谷歌各家中文女声的常见命名：小燕、小晓、小爱、female…
         val femaleHints = listOf(
             "xiaoyan", "xiaoxiao", "xiaoyu", "xiaomei", "xiaoai", "xiaoyun",
             "female", "woman", "f_", "-f-", "_f", "luna", "meijia"
         )
-        return zh.firstOrNull { v ->
+        // 名字命中女声的排最前；都命中时 quality 高的先出（byQuality 已排序）
+        val female = byQuality.filter { v ->
             val n = v.name.lowercase()
             femaleHints.any { n.contains(it) }
-        } ?: zh.firstOrNull { v ->
-            v.locale.country == "CN"
-        } ?: zh.first()
+        }
+        // 引擎不按女声命名时（如 mibrain 用「晓晓·聆听版」这类中文），退而求
+        // 其次按音质挑：quality 500+ 的「高清档」比默认档耐听得多。
+        val hiQuality = byQuality.filter { it.quality >= 500 }
+        Log.i("MorningTts", "zh voices=${byQuality.map { "${it.name}(q${it.quality})" }}")
+        return female.firstOrNull()
+            ?: hiQuality.firstOrNull()
+            ?: byQuality.firstOrNull { it.locale.country == "CN" }
+            ?: byQuality.first()
     }
 
     private fun sampleFile(name: String): File? {
