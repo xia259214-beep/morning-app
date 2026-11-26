@@ -500,21 +500,6 @@ class _RankPageState extends State<RankPage> {
               // 前几名 + 自己附近，避免整榜太长
               for (final e in _boardRows(b)) _boardRow(e),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(Icons.people_alt_outlined,
-                      size: 13, color: AppColor.sub),
-                  const SizedBox(width: 5),
-                  // 自己也是一位真人，别把它漏在计数外面——
-                  // 「0 位」会让答了题的人以为上报没生效。
-                  Text(
-                      b.realCount == 0
-                          ? '目前榜上就你 1 位 · ${b.builtInCount} 位陪练角色'
-                          : '${b.realCount + 1} 位（含你） · ${b.builtInCount} 位陪练角色',
-                      style: TextStyle(fontSize: 10.5, color: AppColor.sub)),
-                ],
-              ),
-              const SizedBox(height: 8),
               Text(
                 '每行下面的科目，是这几分从哪来：答对按题型加分（判断 1 / 单选 1.35 / 多选 1.55），'
                 '连对有加成，答错 −1、漏选 −0.01、漏选加选错 −1.12、跳过 −0.1。'

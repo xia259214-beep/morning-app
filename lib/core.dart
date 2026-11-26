@@ -9,7 +9,7 @@ import 'glass.dart';
 import 'liquid.dart';
 
 /// App 版本号（与 pubspec.yaml 同步）。展示与崩溃日志都用它，避免写死多处。
-const String kAppVersion = '1.22.4';
+const String kAppVersion = '1.22.5';
 
 // ============================================================================
 // 1. 设计系统（Minimal / 安静 / 温暖）
