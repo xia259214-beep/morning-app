@@ -17,9 +17,13 @@ import 'profile.dart';
 ///
 /// [grades] 给每个角配一个字母等级（A~F，见 grade.dart）。给了就把角标画成
 /// 两行：科目名 + 字母。用户看这张图要的不是「63 分」，是「这科什么档」。
+///
+/// [baseline] 是「本阶段基准线」（v1.22.6）：一圈虚线十边形，同样 0~1。
+/// 自己的实线多边形顶到圈外的方向，就是已经够到本阶段水平的方向。
 class PowerRadar extends StatelessWidget {
   final List<double> values;
   final List<double>? rival;
+  final List<double>? baseline;
   final double size;
 
   /// 角标文字：小尺寸（段位阶梯那种）关掉，只留多边形
@@ -32,6 +36,7 @@ class PowerRadar extends StatelessWidget {
     super.key,
     required this.values,
     this.rival,
+    this.baseline,
     this.size = 190,
     this.showLabels = true,
     this.grades,
@@ -46,6 +51,7 @@ class PowerRadar extends StatelessWidget {
         painter: _RadarPainter(
           values: values,
           rival: rival,
+          baseline: baseline,
           showLabels: showLabels,
           grades: grades,
           accent: AppColor.accent,
@@ -62,6 +68,7 @@ class PowerRadar extends StatelessWidget {
 class _RadarPainter extends CustomPainter {
   final List<double> values;
   final List<double>? rival;
+  final List<double>? baseline;
   final bool showLabels;
   final List<String>? grades;
   final Color accent;
@@ -73,6 +80,7 @@ class _RadarPainter extends CustomPainter {
   _RadarPainter({
     required this.values,
     required this.rival,
+    required this.baseline,
     required this.showLabels,
     this.grades,
     required this.accent,
@@ -126,6 +134,20 @@ class _RadarPainter extends CustomPainter {
     for (var i = 0; i < n; i++) {
       final p = pt(i, r);
       canvas.drawLine(Offset(cx, cy), p, spoke);
+    }
+
+    // 2.5) 本阶段基准线（v1.22.6）：虚线十边形，半径取自 [baseline]。
+    // 刻意画成虚线：跟实线的对手线、自己的实线多边形一眼分开。
+    if (baseline != null && baseline!.length >= n) {
+      final dash = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = ink.withOpacity(0.45);
+      for (var i = 0; i < n; i++) {
+        final a = pt(i, r * _clamp(baseline![i]));
+        final b = pt((i + 1) % n, r * _clamp(baseline![(i + 1) % n]));
+        _drawDashedLine(canvas, a, b, dash);
+      }
     }
 
     // 3) 对方战力（先画，压在自己下面）——虚线 + 无填充
@@ -231,10 +253,33 @@ class _RadarPainter extends CustomPainter {
 
   double _clamp(double v) => v.isNaN ? 0 : v.clamp(0.0, 1.0);
 
+  /// 沿 a→b 画虚线：4px 线段 + 3.5px 空隙，画到头为止。
+  void _drawDashedLine(Canvas canvas, Offset a, Offset b, Paint paint) {
+    const dashLen = 4.0;
+    const gapLen = 3.5;
+    final dx = b.dx - a.dx;
+    final dy = b.dy - a.dy;
+    final len = math.sqrt(dx * dx + dy * dy);
+    if (len <= 0) return;
+    final ux = dx / len;
+    final uy = dy / len;
+    var t = 0.0;
+    while (t < len) {
+      final t2 = math.min(t + dashLen, len);
+      canvas.drawLine(
+        Offset(a.dx + ux * t, a.dy + uy * t),
+        Offset(a.dx + ux * t2, a.dy + uy * t2),
+        paint,
+      );
+      t = t2 + gapLen;
+    }
+  }
+
   @override
   bool shouldRepaint(covariant _RadarPainter old) =>
       old.values != values ||
       old.rival != rival ||
+      old.baseline != baseline ||
       old.showLabels != showLabels ||
       old.grades != grades ||
       old.accent != accent ||

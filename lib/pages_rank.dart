@@ -46,6 +46,9 @@ class _RankPageState extends State<RankPage> {
   // 它一个月用不了几次，却天天占着一整屏。
   bool _duelOpen = false;
 
+  // v1.22.6：榜超过 10 人时默认折叠，只亮前 10 名；点一下展开全榜。
+  bool _boardExpanded = false;
+
   @override
   void initState() {
     super.initState();
@@ -127,6 +130,15 @@ class _RankPageState extends State<RankPage> {
   }
 
   int get _answered => _profile.answered.length;
+
+  /// 本阶段基准线（v1.22.6）：把 0~100 的战力尺按八个固定段位均分成八档，
+  /// 取当前段位那一档的正中间（熟路是第三档，基准就是 31/100 附近；
+  /// 破晓之后按重数继续往上，封在 95）。雷达图上画成一圈虚线。
+  List<double> _stageBaseline() {
+    final i = Rank.tierIndex(_answered);
+    final norm = (((i + 0.5) * 12.5) / 100).clamp(0.05, 0.95).toDouble();
+    return List.filled(10, norm);
+  }
 
   Future<void> _copyCode() async {
     final code = Rank.codeOf(
@@ -242,12 +254,18 @@ class _RankPageState extends State<RankPage> {
                       child: PowerRadar(
                         values: PowerChart.instance.normalized,
                         grades: AxisGrade.axesOf(PowerChart.instance),
+                        baseline: _stageBaseline(),
                         size: side,
                       ),
                     );
                   }),
                   const SizedBox(height: 6),
                   Text('十个角就是十个领域：答对的往外长、答错的往里收。',
+                      style: TextStyle(fontSize: 10.5, height: 1.5, color: AppColor.sub)),
+                  const SizedBox(height: 2),
+                  // v1.22.6：基准线说的是「这一段走到一半的人」大概的位置，
+                  // 出圈的方向已经够到本阶段水平，缩在圈里的还在这一段里赶路。
+                  Text('虚线圈是「${tier.name}」这一段的基准线：顶出圈外的方向已经够到这一段水平，缩在圈里的还在赶。',
                       style: TextStyle(fontSize: 10.5, height: 1.5, color: AppColor.sub)),
                   const SizedBox(height: 2),
                   Text('等级按 A–F 记：A 最强，C 是「还没看清」，F 是这块还空着。',
@@ -497,8 +515,9 @@ class _RankPageState extends State<RankPage> {
               Text(b.chaseLine,
                   style: TextStyle(fontSize: 12, color: AppColor.accent)),
               const SizedBox(height: 16),
-              // 前几名 + 自己附近，避免整榜太长
+              // ≤10 人整榜直出；>10 人折叠（见 _boardRows）
               for (final e in _boardRows(b)) _boardRow(e),
+              if (b.rows.length > 10) _boardExpander(b),
               const SizedBox(height: 12),
               Text(
                 '每行下面的科目，是这几分从哪来：答对按题型加分（判断 1 / 单选 1.35 / 多选 1.55），'
@@ -547,37 +566,38 @@ class _RankPageState extends State<RankPage> {
   }
 
   /// 榜单只显示：前三名 + 自己前后各两名，避免一屏塞满。
+  /// v1.22.6：10 人以内整榜直出，不折叠；超过 10 人默认只亮前 10 名，
+  /// 自己被挤到 10 名以外时用「⋯」接一行自己（答了题的人必须看得见自己），
+  /// 其余折叠——点「展开其余 N 人」随时看全榜。
   List<RankEntry> _boardRows(LeaderSnapshot b) {
+    final rows = b.rows;
+    if (rows.length <= 10 || _boardExpanded) return List.of(rows);
+    final out = <RankEntry>[...rows.take(10)];
     final idx = b.myIndex;
-    if (idx < 0) return b.rows.take(3).toList();
-    final keep = <int>{0, 1, 2};
-    for (var i = idx - 2; i <= idx + 2; i++) {
-      if (i >= 0 && i < b.rows.length) keep.add(i);
-    }
-    final sorted = keep.toList()..sort();
-    final out = <RankEntry>[];
-    var last = -1;
-    for (final i in sorted) {
-      if (last >= 0 && i - last > 1) {
-        out.add(RankEntry(
-            id: '__gap_$i', nick: '⋯', total: 0, answered: 0, builtIn: true));
-      }
-      out.add(b.rows[i]);
-      last = i;
-    }
-    // 末尾还剩人时也留一行「还有 N 人」，否则榜单看起来就到这里为止了，
-    // 明明还有排名在自己后面的人。
-    final rest = b.rows.length - 1 - last;
-    if (rest > 0) {
-      out.add(RankEntry(
-          id: '__gap_end',
-          nick: '⋯',
-          total: 0,
-          answered: 0,
-          builtIn: true,
-          city: '$rest'));
+    if (idx >= 10) {
+      out.add(const RankEntry(
+          id: '__gap_self', nick: '⋯', total: 0, answered: 0, builtIn: true));
+      out.add(rows[idx]);
     }
     return out;
+  }
+
+  /// 折叠/展开那一行（v1.22.6）。榜超过 10 人才出现。
+  Widget _boardExpander(LeaderSnapshot b) {
+    final shown = _boardRows(b).where((e) => e.nick != '⋯').length;
+    final rest = b.rows.length - shown;
+    return InkWell(
+      onTap: () => setState(() => _boardExpanded = !_boardExpanded),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 22, top: 6),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(_boardExpanded ? '收起' : '展开其余 $rest 人',
+              style: TextStyle(fontSize: 11, color: AppColor.accent)),
+          Icon(_boardExpanded ? Icons.expand_less : Icons.expand_more,
+              size: 16, color: AppColor.accent),
+        ]),
+      ),
+    );
   }
 
   Widget _boardRow(RankEntry e) {
